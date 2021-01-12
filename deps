@@ -1,0 +1,13 @@
+#!/bin/sh
+GW=SDL_gifwrap
+
+dl(){
+	mkdir -p $GW && curl https://raw.githubusercontent.com/grimfang4/SDL_gifwrap/master/SDL_gifwrap.h > $GW/$GW.h && curl https://raw.githubusercontent.com/grimfang4/SDL_gifwrap/master/SDL_gifwrap.c > $GW/$GW.c
+}
+
+repl(){
+	sed "s/#include \"/#include \"SDL2\//g" $GW/$GW.h > tmp.h
+	mv tmp.h $GW/$GW.h
+}
+
+[ ! -d $GW ] && mkdir $GW && dl && repl || echo "Dependencies found"
