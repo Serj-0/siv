@@ -17,7 +17,7 @@ using namespace boost;
 using namespace boost::filesystem;
 
 #define SCALE_DEGREE 1.1
-#define SHIFT_DEGREE 0.5
+#define SHIFT_DEGREE 5
 #define sivlog if(verbose) cout
 
 filesystem::ifstream ist;
@@ -212,6 +212,7 @@ int main(int argc, char** args){
         loadimg(0);
         setimg(0);
     }else{
+        //TODO load multiple dirs
         int dic = 0;
         path fug = path(*args).parent_path();
         sivlog << "Image path parent: " << fug.string() << "\n";
@@ -305,8 +306,6 @@ int main(int argc, char** args){
         }else{
             rndr = false;
             
-            //TODO rotate 90 deg key
-            //TODO adjust position keys
             switch(e.type){
             case SDL_KEYUP:
                 switch(e.key.keysym.sym){
@@ -333,34 +332,50 @@ int main(int argc, char** args){
                     break;
                 case SDLK_a:
                 case SDLK_LEFT:
-                    curimg->xoff = -50 * SCR_W / (curimg->w * curimg->scalex);
-                    curimg->yoff = -50;
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->xoff = -50 * SCR_W / (curimg->w * curimg->scalex);
+                        curimg->yoff = -50;
+                    }else{
+                        curimg->xoff -= SHIFT_DEGREE / curimg->scaley;
+                    }
                     rndr = true;
                     break;
                 case SDLK_d:
                 case SDLK_RIGHT:
-                    curimg->xoff = 50 * SCR_W / (curimg->w * curimg->scalex) - 100;
-                    curimg->yoff = -50;
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->xoff = 50 * SCR_W / (curimg->w * curimg->scalex) - 100;
+                        curimg->yoff = -50;
+                    }else{
+                        curimg->xoff += SHIFT_DEGREE / curimg->scaley;
+                    }
                     rndr = true;
                     break;
                 case SDLK_w:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
+                    if(e.key.keysym.mod & KMOD_CTRL){
                         curimg->theta = 0;
                         rndr = true;
                         break;
                     }
                 case SDLK_UP:
-                    curimg->yoff = -50 * SCR_H / (curimg->h * curimg->scaley);
-                    curimg->xoff = -50;
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->yoff = -50 * SCR_H / (curimg->h * curimg->scaley);
+                        curimg->xoff = -50;
+                    }else{
+                        curimg->yoff -= SHIFT_DEGREE / curimg->scaley;
+                    }
                     rndr = true;
                     break;
                 case SDLK_s:
                 case SDLK_DOWN:
-                    curimg->yoff = 50 * SCR_H / (curimg->h * curimg->scaley) - 100;
-                    curimg->xoff = -50;
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->yoff = 50 * SCR_H / (curimg->h * curimg->scaley) - 100;
+                        curimg->xoff = -50;
+                    }else{
+                        curimg->yoff += SHIFT_DEGREE / curimg->scaley;
+                    }
                     rndr = true;
                     break;
-                case SDLK_BACKSPACE:
+                case SDLK_z:
                     curimg->scalex = 1;
                     curimg->scaley = 1;
                     rndr = true;
@@ -404,9 +419,11 @@ int main(int argc, char** args){
                     rndr = true;
                     break;
                 case SDLK_EQUALS:
+                case SDLK_2:
                     scaleimg(SCALE_DEGREE, SCALE_DEGREE, true);
                     break;
                 case SDLK_MINUS:
+                case SDLK_1:
                     scaleimg(SCALE_DEGREE, SCALE_DEGREE, false);
                     break;
                 case SDLK_COMMA:
@@ -419,15 +436,19 @@ int main(int argc, char** args){
                     fixwintoimg();
                     break;
                 case SDLK_q:
-                    curimg->theta -= 10;
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->theta = (static_cast<int>(curimg->theta) / 90 - !(static_cast<int>(curimg->theta) % 90 > 0)) * 90;
+                    }else{
+                        curimg->theta -= 5;
+                    }
                     rndr = true;
                     break;
                 case SDLK_e:
-                    curimg->theta += 10;
-                    rndr = true;
-                    break;
-                case SDLK_z:
-                    curimg->theta = 0;
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->theta = (static_cast<int>(curimg->theta) / 90 + 1) * 90;
+                    }else{
+                        curimg->theta += 5;
+                    }
                     rndr = true;
                     break;
                 }
