@@ -32,7 +32,6 @@ bool btn, altdn, ctrdn;
 bool albmmode = false;
 bool tilemode = true;
 
-//TODO replace with point
 //int ms.x, ms.y;
 
 struct f_pair{
@@ -153,8 +152,6 @@ bool comp_img(const image& a, const image& b){
     return a.path.size() < b.path.size();
 }
 
-//TODO finish rotation
-//TODO load multiple images from args
 int main(int argc, char** args){
     /* * CREATE WINDOW * */
     SDL_Init(SDL_INIT_VIDEO);
@@ -308,6 +305,8 @@ int main(int argc, char** args){
         }else{
             rndr = false;
             
+            //TODO rotate 90 deg key
+            //TODO adjust position keys
             switch(e.type){
             case SDL_KEYUP:
                 switch(e.key.keysym.sym){
@@ -345,6 +344,11 @@ int main(int argc, char** args){
                     rndr = true;
                     break;
                 case SDLK_w:
+                    if(e.key.keysym.mod & KMOD_SHIFT){
+                        curimg->theta = 0;
+                        rndr = true;
+                        break;
+                    }
                 case SDLK_UP:
                     curimg->yoff = -50 * SCR_H / (curimg->h * curimg->scaley);
                     curimg->xoff = -50;
@@ -400,18 +404,10 @@ int main(int argc, char** args){
                     rndr = true;
                     break;
                 case SDLK_EQUALS:
-//                    SCR_W *= SCALE_DEGREE - 0.08;
-//                    SCR_H *= SCALE_DEGREE - 0.08;
-//                    SDL_SetWindowSize(win, SCR_W, SCR_H);
                     scaleimg(SCALE_DEGREE, SCALE_DEGREE, true);
-//                    rndr = true;
                     break;
                 case SDLK_MINUS:
-//                    SCR_W /= SCALE_DEGREE - 0.08;
-//                    SCR_H /= SCALE_DEGREE - 0.08;
-//                    SDL_SetWindowSize(win, SCR_W, SCR_H);
                     scaleimg(SCALE_DEGREE, SCALE_DEGREE, false);
-//                    rndr = true;
                     break;
                 case SDLK_COMMA:
                     left_img();
@@ -476,8 +472,7 @@ int main(int argc, char** args){
                         SCR_H += e.motion.yrel;
                         SDL_SetWindowSize(win, SCR_W, SCR_H);
                     }else if(ctrdn){
-                        curimg->theta = atan((mpos.y - curimg->yoff * curimg->scaley) /
-                                (mpos.x - curimg->xoff * curimg->scalex));
+                        curimg->theta = -atan2(SCR_W / 2 - e.motion.x, SCR_H / 2 - e.motion.y) * 180 / 3.14159;
                     }else if(!border){
                         SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
                         SDL_SetWindowPosition(win, mpos.x - ms.x, mpos.y - ms.y);
@@ -487,7 +482,6 @@ int main(int argc, char** args){
                     }
                     rndr = true;
                 }
-                
                 break;
             case SDL_WINDOWEVENT:
                 if(e.window.event == SDL_WINDOWEVENT_RESIZED){
@@ -711,12 +705,12 @@ void setimg(int i){
     }
     
     curimg = &albm[i];
-    //TODO add img info to title
     SDL_SetWindowTitle(win, ("Siv [" + to_string(i + 1) + "/" + to_string(albm.size()) + "] " + path(curimg->path).filename().string() +
             " " + to_string(curimg->w) + "x" + to_string(curimg->h)).c_str());
     rndr = true;
     
     if(curimg->gif.frames){
+        curimg->gif.current_frame = 0;
         pthread_create(&gif_thread, nullptr, gif_func, nullptr);
         gif_active = true;
         SDL_RenderClear(g);
