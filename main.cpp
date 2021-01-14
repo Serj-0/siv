@@ -636,7 +636,7 @@ void fitwinmon(){
     }
     SDL_SetWindowSize(win, SCR_W, SCR_H);
     fitimgwin();
-    fitwinimg();
+//    fitwinimg();
     SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, border ? 30 : 0);
     rndr = true;
 }
@@ -768,7 +768,7 @@ void next_img(){
         b = true;
     }
     setimg(diri);
-    if(!curimg->gif.frames) fitimgwin();
+    if(b && !curimg->gif.frames) fitimgwin();
     rndr = true;
 }
 
