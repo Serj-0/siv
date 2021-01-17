@@ -333,8 +333,8 @@ int main(int argc, char** args){
                 case SDLK_a:
                 case SDLK_LEFT:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->xoff = -50 * SCR_W / (curimg->w * curimg->scalex);
-                        curimg->yoff = -50;
+                        curimg->xoff = -50.0 * curimg->scalex;
+                        curimg->yoff = -50.0;
                     }else{
                         curimg->xoff -= SHIFT_DEGREE / curimg->scaley;
                     }
@@ -343,8 +343,8 @@ int main(int argc, char** args){
                 case SDLK_d:
                 case SDLK_RIGHT:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->xoff = 50 * SCR_W / (curimg->w * curimg->scalex) - 100;
-                        curimg->yoff = -50;
+                        curimg->xoff = 50.0 * curimg->scalex;
+                        curimg->yoff = -50.0;
                     }else{
                         curimg->xoff += SHIFT_DEGREE / curimg->scaley;
                     }
@@ -358,8 +358,8 @@ int main(int argc, char** args){
                     }
                 case SDLK_UP:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->yoff = -50 * SCR_H / (curimg->h * curimg->scaley);
-                        curimg->xoff = -50;
+                        curimg->yoff = -50.0 * curimg->scaley;
+                        curimg->xoff = -50.0;
                     }else{
                         curimg->yoff -= SHIFT_DEGREE / curimg->scaley;
                     }
@@ -368,16 +368,15 @@ int main(int argc, char** args){
                 case SDLK_s:
                 case SDLK_DOWN:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->yoff = 50 * SCR_H / (curimg->h * curimg->scaley) - 100;
-                        curimg->xoff = -50;
+                        curimg->yoff = 50.0 * curimg->scaley;
+                        curimg->xoff = -50.0;
                     }else{
                         curimg->yoff += SHIFT_DEGREE / curimg->scaley;
                     }
                     rndr = true;
                     break;
                 case SDLK_z:
-                    curimg->scalex = 1;
-                    curimg->scaley = 1;
+                    curimg->scalex = curimg->scaley = 1;
                     rndr = true;
                     break;
                 case SDLK_c:
@@ -409,6 +408,7 @@ int main(int argc, char** args){
                 case SDLK_g:
                     fitimgwin();
                     centerimg();
+                    curimg->theta = 0;
                     break;
                 case SDLK_r:
                     curimg->scalex = curimg->scaley = static_cast<float>(SCR_W) / curimg->w;
@@ -678,7 +678,7 @@ void loadimg(int i){
                 GIF_Frame*& fr = gif->frames[i];
                 
                 nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, fr->surface);
-                nimg.gif.timetable[i] = fr->delay;
+                nimg.gif.timetable[i] = fr->delay + (!fr->delay * 100);
                 nimg.gif.offset[i] = {(float) fr->left_offset / gif->width * 100,
                                       (float) fr->top_offset / gif->height * 100};
             }
