@@ -48,6 +48,7 @@ struct gifimg{
     long* timetable;
     f_pair* offset;
     int current_frame;
+    bool* overlay;
 };
 
 struct image{
@@ -80,6 +81,7 @@ vector<image> albm;
 //config and flags
 bool loaddir = false;
 bool verbose = false;
+bool alias = false;
 int buffer = 20;
 
 void render();
@@ -88,7 +90,7 @@ void fitimgwin();
 inline void centerimg();
 void setwinsize(int, int);
 void fitwinmon();
-inline void addimg(const char*);
+inline int addimg(const char*);
 void loadimg(int);
 void unloadimg(int);
 void fitwinimg();
@@ -176,32 +178,13 @@ int main(int argc, char** args){
             verbose = true;
             break;
         case 'a':
+            alias = true;
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
         }
         args++;
         argc--;
     }
-    
-//    if(argc > 2){
-//        for(int i = 1; i < argc - 1; i++){
-//            if(args[i][0] == '-'){
-//                switch(args[i][1]){
-//                case 'd':
-//                    loaddir = true;
-//                    break;
-//                case 'v':
-//                    verbose = true;
-//                    break;
-//                case 'a':
-//                    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
-//                    break;
-//                }
-//            }
-//        }
-//    }
-    
-//    char* filearg = args[argc - 1];
     
     /* * LOAD IMAGES * */
     if(!loaddir){
@@ -331,6 +314,12 @@ int main(int argc, char** args){
                     togglefscr();
                     break;
                 case SDLK_a:
+                    if(e.key.keysym.mod & KMOD_CTRL){
+                        alias = !alias;
+                        cout << SDL_SetHintWithPriority(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1", SDL_HINT_OVERRIDE) << ", alias toggled " << alias << "\n";
+                        rndr = true;
+                        break;
+                    }
                 case SDLK_LEFT:
                     if(e.key.keysym.mod & KMOD_SHIFT){
                         curimg->xoff = -50.0 * curimg->scalex;
@@ -518,12 +507,20 @@ int main(int argc, char** args){
                 break;
             case SDL_DROPFILE:
 //                dirimgs.push_back({e.drop.file, static_cast<int>(albm.size())});
-                addimg(e.drop.file);
-                diri = albm.size() - 1;
-                loadimg(diri);
-                setimg(diri);
-                fitimgwin();
-                sivlog << e.drop.file << " loaded from drop\n";
+                if(addimg(e.drop.file)){
+                    diri = albm.size() - 1;
+                    loadimg(diri);
+                    setimg(diri);
+                    fitimgwin();
+                    sivlog << e.drop.file << " loaded from drop\n";
+                }else{
+                    for(int i = 0; i < albm.size(); i++){
+                        if(strcmp(albm[i].path.c_str(), e.drop.file)){
+                            diri = i;
+                            setimg(diri);
+                        }
+                    }
+                }
                 break;
             }
 
@@ -562,7 +559,7 @@ void render_gif(){
     
     SDL_Point pp = {static_cast<int>(w * curimg->scalex / 2), static_cast<int>(h * curimg->scaley / 2)};
     
-//    SDL_RenderClear(g);
+    if(!curimg->gif.overlay[curimg->gif.current_frame]) SDL_RenderClear(g);
     
     if(curimg->theta){
         SDL_RenderCopyEx(g, fr, NULL, &rectscl, curimg->theta, &pp, SDL_RendererFlip::SDL_FLIP_NONE);
@@ -657,19 +654,29 @@ void fitwinmon(){
 }
 
 //TODO do not add images that are already added
-inline void addimg(const char* path){
+/**
+ * @return 1 if add, 0 if not
+ */
+inline int addimg(const char* path){
+    for(image i : albm){
+        if(!strcmp(i.path.c_str(), path)) return 0;
+    }
     albm.push_back({string(path), nullptr, 1, 1, -50, -50});
+    return 1;
 }
 
 void loadimg(int i){
     image& nimg = albm[i];
     if(!nimg.img && !nimg.gif.frames){
         if(lowcase(path(nimg.path).extension().string()) == ".gif"){
+            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             GIF_Image* gif = GIF_LoadImage(nimg.path.c_str());
             nimg.gif.count = gif->num_frames;
+            
             nimg.gif.frames = new SDL_Texture*[nimg.gif.count];
             nimg.gif.timetable = new long[nimg.gif.count];
             nimg.gif.offset = new f_pair[nimg.gif.count];
+            nimg.gif.overlay = new bool[nimg.gif.count];
             
             nimg.w = gif->width;
             nimg.h = gif->height;
@@ -681,9 +688,11 @@ void loadimg(int i){
                 nimg.gif.timetable[i] = fr->delay + (!fr->delay * 100);
                 nimg.gif.offset[i] = {(float) fr->left_offset / gif->width * 100,
                                       (float) fr->top_offset / gif->height * 100};
+                nimg.gif.overlay[i] = gif->frames[i]->overlay_previous;
             }
             
             GIF_FreeImage(gif);
+            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1");
             sivlog << i << ": " << albm[i].path << " loaded (" << nimg.gif.count << ")\n";
         }else{
             nimg.img = IMG_LoadTexture(g, nimg.path.c_str());
@@ -709,6 +718,7 @@ void unloadimg(int i){
         img.gif.frames = nullptr;
         delete img.gif.timetable;
         delete img.gif.offset;
+        delete img.gif.overlay;
         loaded--;
         sivlog << i << ": " << albm[i].path << " unloaded (" << img.gif.count << ")\n";
     }
@@ -729,7 +739,7 @@ void setimg(int i){
     SDL_SetWindowTitle(win, ("Siv [" + to_string(i + 1) + "/" + to_string(albm.size()) + "] " + path(curimg->path).filename().string() +
             " " + to_string(curimg->w) + "x" + to_string(curimg->h)).c_str());
     rndr = true;
-    
+
     if(curimg->gif.frames){
         curimg->gif.current_frame = 0;
         pthread_create(&gif_thread, nullptr, gif_func, nullptr);
