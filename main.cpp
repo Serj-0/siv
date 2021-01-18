@@ -23,7 +23,7 @@ using namespace boost::filesystem;
 filesystem::ifstream ist;
 string str;
 
-int SCR_W, SCR_H;
+int SCR_W = 500, SCR_H = 500;
 //int IMG_W, IMG_H;
 SDL_Rect rectbfr, recttmp, rectscl;
 
@@ -244,7 +244,7 @@ int main(int argc, char** args){
         
         diri = dic;
         loadimg(diri);
-        setimg(diri);
+        curimg = &albm[diri];
         sivlog << *args << " loaded as main image, diri: " << diri << endl;
     }
     
@@ -253,25 +253,29 @@ int main(int argc, char** args){
     /* * SIZE WINDOW * */
     if(!tilemode){
         SDL_GetDisplayBounds(0, &rectbfr);
-        if(curimg->h > rectbfr.h || curimg->w > rectbfr.w){
+        if(albm[diri].h > rectbfr.h || albm[diri].w > rectbfr.w){
             fitwinmon();
         }else if(SCR_W == 0 && SCR_H == 0){
             fitwinmon();
-            SCR_W = curimg->w;
-            SCR_H = curimg->h;
+            SCR_W = albm[diri].w;
+            SCR_H = albm[diri].h;
             SDL_SetWindowSize(win, SCR_W, SCR_H);
             SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            curimg->scalex = curimg->scaley = 1;
+            albm[diri].scalex = albm[diri].scaley = 1;
         }
     }else{
         SDL_GetRendererOutputSize(g, &SCR_W, &SCR_H);
         sivlog << "Renderer Output size: " << SCR_W << ", " << SCR_H << "\n";
-        if(!curimg->gif.frames) fitimgwin();
+        fitimgwin();
     }
     
     /* * RUN * */
     SDL_Event e;
     bool run = true;
+    
+    //TODO prevent gif from rendering until this point
+    setimg(diri);
+//    SDL_RenderClear(g);
     
     while(run){
         SDL_WaitEvent(&e);
@@ -425,8 +429,10 @@ int main(int argc, char** args){
                     fixwintoimg();
                     break;
                 case SDLK_q:
+                    //TODO make this not shit
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->theta = (static_cast<int>(curimg->theta) / 90 - !(static_cast<int>(curimg->theta) % 90 > 0)) * 90;
+                        curimg->theta = ((static_cast<int>(curimg->theta) / 90 - !(static_cast<int>(curimg->theta) % 90)) * 90) % 360;
+                        if(curimg->theta < 0) curimg->theta = 360 + curimg->theta;
                     }else{
                         curimg->theta -= 5;
                     }
@@ -434,7 +440,7 @@ int main(int argc, char** args){
                     break;
                 case SDLK_e:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->theta = (static_cast<int>(curimg->theta) / 90 + 1) * 90;
+                        curimg->theta = ((static_cast<int>(curimg->theta) / 90 + 1) * 90) % 360;
                     }else{
                         curimg->theta += 5;
                     }
@@ -648,12 +654,10 @@ void fitwinmon(){
     }
     SDL_SetWindowSize(win, SCR_W, SCR_H);
     fitimgwin();
-//    fitwinimg();
     SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, border ? 30 : 0);
     rndr = true;
 }
 
-//TODO do not add images that are already added
 /**
  * @return 1 if add, 0 if not
  */
@@ -787,14 +791,13 @@ void scaleimg(float x, float y, bool larger){
 
 void next_img(){
     bool b = false;
-    if(!albm[diri].img){
+    if(!albm[diri].img && !albm[diri].gif.frames){
         SDL_SetWindowTitle(win, "Loading. . .");
         loadimg(diri);
         b = true;
     }
     setimg(diri);
-    if(b && !curimg->gif.frames) fitimgwin();
-    rndr = true;
+    if(b) fitimgwin();
 }
 
 void right_img(){
