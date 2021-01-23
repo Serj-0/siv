@@ -83,7 +83,7 @@ bool alias = false;
 int buffer = 20;
 
 void render();
-//void render_gif();
+void render_gif();
 void fitimgwin();
 inline void centerimg();
 void setwinsize(int, int);
@@ -574,8 +574,7 @@ void render_gif(){
     
     SDL_Point pp = {static_cast<int>(w * curimg->scalex / 2), static_cast<int>(h * curimg->scaley / 2)};
     
-//    if(!curimg->gif.overlay[curimg->gif.current_frame]) 
-    SDL_RenderClear(g);
+    if(!curimg->gif.overlay[curimg->gif.current_frame]) SDL_RenderClear(g);
     
     if(curimg->theta){
         SDL_RenderCopyEx(g, fr, NULL, &rectscl, curimg->theta, &pp, SDL_RendererFlip::SDL_FLIP_NONE);
@@ -696,17 +695,10 @@ void loadimg(int i){
             nimg.w = gif->width;
             nimg.h = gif->height;
             
-            SDL_PixelFormat* f = SDL_GetWindowSurface(win)->format;
-            SDL_Surface* srf = SDL_CreateRGBSurfaceWithFormat(0, nimg.w, nimg.h, f->BitsPerPixel, f->format);
-            
             for(int i = 0; i < nimg.gif.count; i++){
                 GIF_Frame*& fr = gif->frames[i];
   
-                SDL_BlitSurface(fr->surface, nullptr, srf, nullptr);
-                nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, srf);
-                
-//                nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, fr->surface);
-                
+                nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, fr->surface);
                 nimg.gif.timetable[i] = fr->delay + (!fr->delay * 100);
                 nimg.gif.offset[i] = {(float) fr->left_offset / gif->width * 100,
                                       (float) fr->top_offset / gif->height * 100};
