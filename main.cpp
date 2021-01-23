@@ -1,9 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
-#include <ctime>
 #include <vector>
-#include <dirent.h>
 #include <algorithm>
 #include <pthread.h>
 #include <csignal>
@@ -182,8 +180,14 @@ int main(int argc, char** args){
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
         }
-        args++;
-        argc--;
+	if(argc > 1){
+	    argc--;
+	    args++;
+	}else{
+            sivlog << "No file given, loading directory\n";
+            argc--;
+	    goto fgg;
+	}
     }
     
     /* * LOAD IMAGES * */
@@ -196,13 +200,14 @@ int main(int argc, char** args){
         setimg(0);
     }else{
         //TODO load multiple dirs
+	fgg:;
         int dic = 0;
         path fug = path(*args).parent_path();
         sivlog << "Image path parent: " << fug.string() << "\n";
 
         if(!exists(fug)){
             fug = current_path();
-            sivlog << "Does not exist. current path: " << fug.string() << "\n";
+            sivlog << "Path does not exist. current path: " << fug.string() << "\n";
         }
         
         //TODO maybe replace with different image detection method
@@ -233,19 +238,21 @@ int main(int argc, char** args){
         
         sort(albm.begin(), albm.end(), comp_img);
         
-        sivlog << "Sorted:\n";
-        for(int i = 0; i < albm.size(); i++){
-            if(canonical(path(albm[i].path)) == canonical(path(*args))){
-                dic = i;
-                sivlog << "Selected image -> ";
+        if(argc){
+            sivlog << "Sorted:\n";
+            for(int i = 0; i < albm.size(); i++){
+                if(canonical(path(albm[i].path)) == canonical(path(*args))){
+                    dic = i;
+                    sivlog << "Selected image -> ";
+                }
+                sivlog << i << ": " << albm[i].path << "\n";
             }
-            sivlog << i << ": " << albm[i].path << "\n";
         }
         
         diri = dic;
         loadimg(diri);
         curimg = &albm[diri];
-        sivlog << *args << " loaded as main image, diri: " << diri << endl;
+        sivlog << curimg->path << " loaded as main image, diri: " << diri << endl;
     }
     
     SDL_WaitEvent(nullptr);
@@ -326,20 +333,21 @@ int main(int argc, char** args){
                     }
                 case SDLK_LEFT:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->xoff = -50.0 * curimg->scalex;
+//                        curimg->xoff = -50.0 * curimg->scalex;
+                        curimg->xoff = -50.0 * SCR_W / (curimg->w * curimg->scalex);
                         curimg->yoff = -50.0;
                     }else{
-                        curimg->xoff -= SHIFT_DEGREE / curimg->scaley;
+                        curimg->xoff -= SHIFT_DEGREE / curimg->scalex;
                     }
                     rndr = true;
                     break;
                 case SDLK_d:
                 case SDLK_RIGHT:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->xoff = 50.0 * curimg->scalex;
+                        curimg->xoff = (100.0 * SCR_W / (2 * curimg->w * curimg->scalex) - 100.0);
                         curimg->yoff = -50.0;
                     }else{
-                        curimg->xoff += SHIFT_DEGREE / curimg->scaley;
+                        curimg->xoff += SHIFT_DEGREE / curimg->scalex;
                     }
                     rndr = true;
                     break;
@@ -351,7 +359,8 @@ int main(int argc, char** args){
                     }
                 case SDLK_UP:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->yoff = -50.0 * curimg->scaley;
+//                        curimg->yoff = -50.0 * curimg->scaley;
+                        curimg->yoff = -50.0 * SCR_H / (curimg->h * curimg->scaley);
                         curimg->xoff = -50.0;
                     }else{
                         curimg->yoff -= SHIFT_DEGREE / curimg->scaley;
@@ -361,7 +370,8 @@ int main(int argc, char** args){
                 case SDLK_s:
                 case SDLK_DOWN:
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->yoff = 50.0 * curimg->scaley;
+//                        curimg->yoff = 50.0 * curimg->scaley;
+                        curimg->yoff = (100.0 * SCR_H / (2 * curimg->h * curimg->scaley) - 100.0);
                         curimg->xoff = -50.0;
                     }else{
                         curimg->yoff += SHIFT_DEGREE / curimg->scaley;
@@ -669,6 +679,7 @@ inline int addimg(const char* path){
     return 1;
 }
 
+//TODO load gif frames with rastered overlay
 void loadimg(int i){
     image& nimg = albm[i];
     if(!nimg.img && !nimg.gif.frames){
