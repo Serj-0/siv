@@ -15,7 +15,7 @@ using namespace boost;
 using namespace boost::filesystem;
 
 #define SCALE_DEGREE 1.1
-#define SHIFT_DEGREE 5
+#define SHIFT_PX 50.0
 #define sivlog if(verbose) cout
 
 filesystem::ifstream ist;
@@ -323,6 +323,7 @@ int main(int argc, char** args){
                 case SDLK_f:
                     togglefscr();
                     break;
+                //TODO 
                 case SDLK_a:
                     if(e.key.keysym.mod & KMOD_CTRL){
                         alias = !alias;
@@ -336,7 +337,9 @@ int main(int argc, char** args){
                         curimg->xoff = -50.0 * SCR_W / (curimg->w * curimg->scalex);
                         curimg->yoff = -50.0;
                     }else{
-                        curimg->xoff -= SHIFT_DEGREE / curimg->scalex;
+                        //50px
+//                        curimg->xoff -= SHIFT_DEGREE / curimg->scalex;
+                        curimg->xoff -= SHIFT_PX / curimg->w * 100 / curimg->scalex;
                     }
                     rndr = true;
                     break;
@@ -346,7 +349,8 @@ int main(int argc, char** args){
                         curimg->xoff = (100.0 * SCR_W / (2 * curimg->w * curimg->scalex) - 100.0);
                         curimg->yoff = -50.0;
                     }else{
-                        curimg->xoff += SHIFT_DEGREE / curimg->scalex;
+//                        curimg->xoff += SHIFT_DEGREE / curimg->scalex;
+                        curimg->xoff += SHIFT_PX / curimg->w * 100 / curimg->scalex;
                     }
                     rndr = true;
                     break;
@@ -362,7 +366,8 @@ int main(int argc, char** args){
                         curimg->yoff = -50.0 * SCR_H / (curimg->h * curimg->scaley);
                         curimg->xoff = -50.0;
                     }else{
-                        curimg->yoff -= SHIFT_DEGREE / curimg->scaley;
+//                        curimg->yoff -= SHIFT_PX / curimg->scaley;
+                        curimg->yoff -= SHIFT_PX / curimg->h * 100 / curimg->scaley;
                     }
                     rndr = true;
                     break;
@@ -373,7 +378,8 @@ int main(int argc, char** args){
                         curimg->yoff = (100.0 * SCR_H / (2 * curimg->h * curimg->scaley) - 100.0);
                         curimg->xoff = -50.0;
                     }else{
-                        curimg->yoff += SHIFT_DEGREE / curimg->scaley;
+//                        curimg->yoff += SHIFT_PX / curimg->scaley;
+                        curimg->yoff += SHIFT_PX / curimg->h * 100 / curimg->scaley;
                     }
                     rndr = true;
                     break;
