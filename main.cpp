@@ -444,20 +444,23 @@ int main(int argc, char** args){
                     fixwintoimg();
                     break;
                 case SDLK_q:
-                    //TODO make this not shit
                     if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->theta = ((static_cast<int>(curimg->theta) / 90 - !(static_cast<int>(curimg->theta) % 90)) * 90) % 360;
-                        if(curimg->theta < 0) curimg->theta = 360 + curimg->theta;
+                        int thetan = static_cast<int>(curimg->theta);
+                        int r = thetan % 90;
+                        thetan /= 90;
+                        
+                        curimg->theta = ((thetan - 1 * (r == 0) + (thetan < 1) * 4) * 90);
                     }else{
-                        curimg->theta -= 5;
+                        curimg->theta -= 5 - (curimg->theta < 5) * 360;
                     }
                     rndr = true;
                     break;
                 case SDLK_e:
                     if(e.key.keysym.mod & KMOD_SHIFT){
                         curimg->theta = ((static_cast<int>(curimg->theta) / 90 + 1) * 90) % 360;
+                        cout << curimg->theta << '\n';
                     }else{
-                        curimg->theta += 5;
+                        curimg->theta += 5 - (curimg->theta >= 355) * 360;
                     }
                     rndr = true;
                     break;
