@@ -18,8 +18,8 @@ using namespace boost::filesystem;
 #define SHIFT_PX 50.0
 #define sivlog if(verbose) cout
 
-filesystem::ifstream ist;
-string str;
+//filesystem::ifstream ist;
+//string str;
 
 int SCR_W = 500, SCR_H = 500;
 //int IMG_W, IMG_H;
@@ -76,6 +76,21 @@ bool rndr;
 
 vector<image> albm;
 
+vector<string> exts = {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".jfif",
+            ".gif",
+            ".tiff",
+            ".webp",
+            ".bmp",
+            ".ppm",
+            ".pgm",
+            ".pbm",
+            ".pnm"
+        };
+
 //config and flags
 bool loaddir = false;
 bool verbose = false;
@@ -104,6 +119,18 @@ void* gif_func(void*);
 string lowcase(string str){
     transform(str.begin(), str.end(), str.begin(), [](unsigned char c){ return tolower(c); });
     return str;
+}
+
+void add_directory_images(path dir){
+    for(path p : directory_iterator(dir)){
+        for(string s : exts){
+            if(lowcase(p.extension().string()) == s){
+                addimg(p.string().c_str());
+                sivlog << "Filed: " << p.string() << "\n";
+                break;
+            }
+        }
+    }
 }
 
 inline bool num(const char& c){
@@ -163,12 +190,10 @@ int main(int argc, char** args){
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-    args++;
-    argc--;
-    
+    int argi = 1;
     //TODO add sort method flag
-    while(*args[0] == '-'){
-        switch((*args)[1]){
+    while(argi < argc && args[argi][0] == '-'){
+        switch(args[argi][1]){
         case 'd':
             loaddir = true;
             break;
@@ -180,68 +205,61 @@ int main(int argc, char** args){
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
         }
-	if(argc > 1){
-	    argc--;
-	    args++;
-	}else{
-            sivlog << "No file given, loading directory\n";
-            argc--;
-	    goto fgg;
-	}
+        sivlog << "Argument " << args[argi] << "\n";
+        argi++;
     }
     
     /* * LOAD IMAGES * */
     if(!loaddir){
-        while(argc--){
-            sivlog << "Filing: " << *args << "\n";
-            addimg(*(args++));
+        if(argi < argc){
+            while(argi < argc){
+                sivlog << "Adding: " << args[argi] << "\n";
+                addimg(args[argi++]);
+            }
+        }else{
+            sivlog << "No file argument, reading STDIN\n";
+            char in[BUFSIZ];
+            while(cin.getline(in, BUFSIZ)){
+                sivlog << "Adding: " << in << "\n";
+                addimg(in);
+            }
         }
+        
+        if(!albm.size()){
+            cout << "No files given!\n";
+        }
+        
         loadimg(0);
         setimg(0);
     }else{
-        //TODO load multiple dirs
-	fgg:;
+        sivlog << "Loading directory\n";
+        
         int dic = 0;
-        path fug = path(*args).parent_path();
-        sivlog << "Image path parent: " << fug.string() << "\n";
+        path fug;
+        bool fugged = false;
+        if(argi < argc){
+            fug = path(args[argi]).parent_path();
+            fugged = true;
+        }else{
+            fug = current_path();
+        }
+        sivlog << "Directory: " << fug.string() << "\n";
 
         if(!exists(fug)){
             fug = current_path();
+            fugged = true;
             sivlog << "Path does not exist. current path: " << fug.string() << "\n";
         }
         
         //TODO maybe replace with different image detection method
-        vector<string> exts = {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".jfif",
-            ".gif",
-            ".tiff",
-            ".webp",
-            ".bmp",
-            ".ppm",
-            ".pgm",
-            ".pbm",
-            ".pnm"
-        };
-        
-        for(path p : directory_iterator(fug)){
-            for(string s : exts){
-                if(lowcase(p.extension().string()) == s){
-                    addimg(p.string().c_str());
-                    sivlog << "Filed: " << p.string() << "\n";
-                    break;
-                }
-            }
-        }
+        add_directory_images(fug);
         
         sort(albm.begin(), albm.end(), comp_img);
         
-        if(argc){
+        if(fugged){
             sivlog << "Sorted:\n";
             for(int i = 0; i < albm.size(); i++){
-                if(canonical(path(albm[i].path)) == canonical(path(*args))){
+                if(canonical(path(albm[i].path)) == canonical(path(args[argi]))){
                     dic = i;
                     sivlog << "Selected image -> ";
                 }
@@ -251,7 +269,7 @@ int main(int argc, char** args){
         
         diri = dic;
         loadimg(diri);
-        curimg = &albm[diri];
+        setimg(diri);
         sivlog << curimg->path << " loaded as main image, diri: " << diri << endl;
     }
     
@@ -458,7 +476,6 @@ int main(int argc, char** args){
                 case SDLK_e:
                     if(e.key.keysym.mod & KMOD_SHIFT){
                         curimg->theta = ((static_cast<int>(curimg->theta) / 90 + 1) * 90) % 360;
-                        cout << curimg->theta << '\n';
                     }else{
                         curimg->theta += 5 - (curimg->theta >= 355) * 360;
                     }
@@ -677,7 +694,7 @@ void fitwinmon(){
 }
 
 /**
- * @return 1 if add, 0 if not
+ * @return 1 if added, 0 if not
  */
 inline int addimg(const char* path){
     for(image i : albm){
@@ -811,7 +828,7 @@ void scaleimg(float x, float y, bool larger){
 void next_img(){
     bool b = false;
     if(!albm[diri].img && !albm[diri].gif.frames){
-        SDL_SetWindowTitle(win, "Loading. . .");
+        SDL_SetWindowTitle(win, ("Loading " + albm[diri].path + ". . .").c_str());
         loadimg(diri);
         b = true;
     }
