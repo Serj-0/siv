@@ -26,7 +26,7 @@ int SCR_W = 500, SCR_H = 500;
 SDL_Rect rectbfr, recttmp, rectscl;
 
 bool fscr = false, border = true;
-bool btn, altdn, ctrdn;
+bool btn, altdn, ctrdn, shftdn;
 bool albmmode = false;
 bool tilemode = true;
 
@@ -95,7 +95,7 @@ vector<string> exts = {
 bool loaddir = false;
 bool verbose = false;
 bool alias = false;
-int buffer = 20;
+int buffer = 100;
 
 void render();
 void render_gif();
@@ -326,6 +326,9 @@ int main(int argc, char** args){
                 case SDLK_LCTRL:
                     ctrdn = false;
                     break;
+                case SDLK_LSHIFT:
+                    shftdn = false;
+                    break;
                 case SDLK_ESCAPE:
                     run = false;
                     break;
@@ -341,14 +344,14 @@ int main(int argc, char** args){
                 case SDLK_f:
                     togglefscr();
                     break;
-                //TODO 
-                case SDLK_a:
-                    if(e.key.keysym.mod & KMOD_CTRL){
-                        alias = !alias;
-                        cout << SDL_SetHintWithPriority(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1", SDL_HINT_OVERRIDE) << ", alias toggled " << alias << "\n";
-                        rndr = true;
-                        break;
-                    }
+//                case SDLK_a:
+//                    if(e.key.keysym.mod & KMOD_CTRL){
+//                        alias = !alias;
+//                        bool r = SDL_SetHintWithPriority(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1", SDL_HINT_OVERRIDE);
+//                        sivlog << r << ", alias toggled " << alias << "\n";
+//                        rndr = true;
+//                        break;
+//                    }
                 case SDLK_LEFT:
                     if(e.key.keysym.mod & KMOD_SHIFT){
 //                        curimg->xoff = -50.0 * curimg->scalex;
@@ -421,6 +424,9 @@ int main(int argc, char** args){
                     break;
                 case SDLK_LCTRL:
                     ctrdn = true;
+                    break;
+                case SDLK_LSHIFT:
+                    shftdn = true;
                     break;
                 case SDLK_t:
                     if(e.key.keysym.mod & KMOD_SHIFT){
@@ -524,6 +530,8 @@ int main(int argc, char** args){
                         SDL_SetWindowSize(win, SCR_W, SCR_H);
                     }else if(ctrdn){
                         curimg->theta = -atan2(SCR_W / 2 - e.motion.x, SCR_H / 2 - e.motion.y) * 180 / 3.14159;
+                    }else if(shftdn){
+                        //TODO implement region zoom
                     }else if(!border){
                         SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
                         SDL_SetWindowPosition(win, mpos.x - ms.x, mpos.y - ms.y);
@@ -539,7 +547,7 @@ int main(int argc, char** args){
                     SCR_W = e.window.data1;
                     SCR_H = e.window.data2;
                     rndr = true;
-                }else if(e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED){
+                }else if(e.window.event == SDL_WINDOWEVENT_EXPOSED){
                     rndr = true;
                 }
                 break;
@@ -634,6 +642,7 @@ void render(){
     }
     
     SDL_RenderPresent(g);
+    sivlog << "rendered " << clock() << "\n";
 }
 
 float fitconstraints(SDL_Rect rect, coord bounds){

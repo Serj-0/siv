@@ -10,4 +10,4 @@ repl(){
 	mv tmp.h $GW/$GW.h
 }
 
-[ ! -d $GW ] && mkdir $GW && dl && repl || echo "Dependencies found"
+[ ! -d $GW ] && mkdir $GW && dl && repl || echo "Gifwrap dependencies found."
