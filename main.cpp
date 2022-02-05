@@ -69,7 +69,7 @@ SDL_Window* win;
 SDL_Renderer* g;
 
 image* curimg;
-int diri = 0;
+int albmi = 0;
 int loaded = 0;
 
 bool rndr;
@@ -179,6 +179,13 @@ bool comp_img(const image& a, const image& b){
     return a.path.size() < b.path.size();
 }
 
+inline void stop_gif_thread(){
+    if(gif_active){
+        gif_active = false;
+        pthread_join(gif_thread, 0);
+    }
+}
+
 int main(int argc, char** args){
     /* * CREATE WINDOW * */
     SDL_Init(SDL_INIT_VIDEO);
@@ -267,10 +274,10 @@ int main(int argc, char** args){
             }
         }
         
-        diri = dic;
-        loadimg(diri);
-        setimg(diri);
-        sivlog << curimg->path << " loaded as main image, diri: " << diri << endl;
+        albmi = dic;
+        loadimg(albmi);
+        setimg(albmi);
+        sivlog << curimg->path << " loaded as main image, diri: " << albmi << endl;
     }
     
     SDL_WaitEvent(nullptr);
@@ -278,15 +285,15 @@ int main(int argc, char** args){
     /* * SIZE WINDOW * */
     if(!tilemode){
         SDL_GetDisplayBounds(0, &rectbfr);
-        if(albm[diri].h > rectbfr.h || albm[diri].w > rectbfr.w){
+        if(albm[albmi].h > rectbfr.h || albm[albmi].w > rectbfr.w){
             fitwinmon();
         }else if(SCR_W == 0 && SCR_H == 0){
             fitwinmon();
-            SCR_W = albm[diri].w;
-            SCR_H = albm[diri].h;
+            SCR_W = albm[albmi].w;
+            SCR_H = albm[albmi].h;
             SDL_SetWindowSize(win, SCR_W, SCR_H);
             SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            albm[diri].scalex = albm[diri].scaley = 1;
+            albm[albmi].scalex = albm[albmi].scaley = 1;
         }
     }else{
         SDL_GetRendererOutputSize(g, &SCR_W, &SCR_H);
@@ -298,7 +305,7 @@ int main(int argc, char** args){
     SDL_Event e;
     bool run = true;
     
-    setimg(diri);
+    setimg(albmi);
 //    SDL_RenderClear(g);
     
     while(run){
@@ -487,6 +494,16 @@ int main(int argc, char** args){
                     }
                     rndr = true;
                     break;
+                case SDLK_DELETE:
+                    if(albm.size() > 1){
+                        stop_gif_thread();
+                        int boof = albmi;
+                        gif_active = false;
+                        unloadimg(boof);
+                        albm.erase(albm.begin() + boof);
+                        left_img();
+                    }
+                    break;
                 }
                 break;
             case SDL_QUIT:
@@ -557,16 +574,16 @@ int main(int argc, char** args){
             case SDL_DROPFILE:
 //                dirimgs.push_back({e.drop.file, static_cast<int>(albm.size())});
                 if(addimg(e.drop.file)){
-                    diri = albm.size() - 1;
-                    loadimg(diri);
-                    setimg(diri);
+                    albmi = albm.size() - 1;
+                    loadimg(albmi);
+                    setimg(albmi);
                     fitimgwin();
                     sivlog << e.drop.file << " loaded from drop\n";
                 }else{
                     for(int i = 0; i < albm.size(); i++){
                         if(strcmp(albm[i].path.c_str(), e.drop.file)){
-                            diri = i;
-                            setimg(diri);
+                            albmi = i;
+                            setimg(albmi);
                         }
                     }
                 }
@@ -577,10 +594,7 @@ int main(int argc, char** args){
         }
     }
 
-    if(gif_active){
-        gif_active = false;
-        pthread_join(gif_thread, 0);
-    }
+    stop_gif_thread();
     
     for(int i = 0; i < albm.size(); i++) unloadimg(i);
     SDL_DestroyRenderer(g);
@@ -764,7 +778,7 @@ void unloadimg(int i){
             SDL_DestroyTexture(img.gif.frames[i]);
         }
         delete[] img.gif.frames;
-        img.gif.frames = nullptr;
+//        img.gif.frames = nullptr;
         delete img.gif.timetable;
         delete img.gif.offset;
         delete img.gif.overlay;
@@ -836,28 +850,28 @@ void scaleimg(float x, float y, bool larger){
 
 void next_img(){
     bool b = false;
-    if(!albm[diri].img && !albm[diri].gif.frames){
-        SDL_SetWindowTitle(win, ("Loading " + albm[diri].path + ". . .").c_str());
-        loadimg(diri);
+    if(!albm[albmi].img && !albm[albmi].gif.frames){
+        SDL_SetWindowTitle(win, ("Loading " + albm[albmi].path + ". . .").c_str());
+        loadimg(albmi);
         b = true;
     }
-    setimg(diri);
+    setimg(albmi);
     if(b) fitimgwin();
 }
 
 void right_img(){
-    if(++diri >= albm.size()) diri = 0;
+    if(++albmi >= albm.size()) albmi = 0;
     next_img();
     if(loaded > buffer)
-        unloadimg(diri - buffer < 0 ? albm.size() - 1 + (diri - buffer) : diri - buffer);
+        unloadimg(albmi - buffer < 0 ? albm.size() - 1 + (albmi - buffer) : albmi - buffer);
     rndr = true;
 }
 
 void left_img(){
-    if(--diri < 0) diri = albm.size() - 1;
+    if(--albmi < 0) albmi = albm.size() - 1;
     next_img();
     if(loaded > buffer)
-        unloadimg(diri + buffer > albm.size() - 1 ? (diri + buffer) % (albm.size() - 1) : diri + buffer);
+        unloadimg(albmi + buffer > albm.size() - 1 ? (albmi + buffer) % (albm.size() - 1) : albmi + buffer);
     rndr = true;
 }
 

@@ -11,7 +11,7 @@ build:
 	$(AR) rcs $(GW)/libgifwrap.a $(GW)/$(GW).o
 	$(CXX) $(CPPFLAGS) -o siv
 
-install:
+install: build
 	mv siv $(BINDIR)/siv
 
 uninstall:
