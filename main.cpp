@@ -6,17 +6,22 @@
 #include <pthread.h>
 #include <csignal>
 #include <chrono>
+#include <map>
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_image.h"
 #include "SDL_gifwrap/SDL_gifwrap.h"
 #include "boost/filesystem.hpp"
-using namespace std;
-using namespace boost;
-using namespace boost::filesystem;
 
 #define SCALE_DEGREE 1.1
 #define SHIFT_PX 50.0
 #define sivlog if(verbose) cout
+
+#define REG_CALLBACK(key, func) actions[key] = func
+#define GEN_CALLBACK(key) actions[key] = [](SDL_Event& e)
+
+using namespace std;
+using namespace boost;
+using namespace boost::filesystem;
 
 //filesystem::ifstream ist;
 //string str;
@@ -113,8 +118,7 @@ void fixwintoimg();
 void scaleimg(float, float, bool);
 void next_img();
 void right_img();
-void left_img();
-void* gif_func(void*);
+void left_img(); void* gif_func(void*);
 
 string lowcase(string str){
     transform(str.begin(), str.end(), str.begin(), [](unsigned char c){ return tolower(c); });
@@ -186,6 +190,184 @@ inline void stop_gif_thread(){
     }
 }
 
+/*** ACTIONS ***/
+
+map<SDL_Keycode, void(*)(SDL_Event&)> actions;
+
+void init_default_actions(){
+	GEN_CALLBACK(SDLK_b){
+		if(fscr) togglefscr();
+		border = !border;
+		SDL_SetWindowBordered(win, (SDL_bool) border);
+	};
+
+	GEN_CALLBACK(SDLK_f){
+		togglefscr();
+	};
+
+	GEN_CALLBACK(SDLK_w){
+		curimg->theta = 0;
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_LEFT){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			curimg->xoff = -50.0 * SCR_W / (curimg->w * curimg->scalex);
+			curimg->yoff = -50.0;
+		}else{
+			curimg->xoff -= SHIFT_PX / curimg->w * 100 / curimg->scalex;
+		}
+		rndr = true;
+	};
+
+
+	GEN_CALLBACK(SDLK_RIGHT){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			curimg->xoff = (100.0 * SCR_W / (2 * curimg->w * curimg->scalex) - 100.0);
+			curimg->yoff = -50.0;
+		}else{
+			curimg->xoff += SHIFT_PX / curimg->w * 100 / curimg->scalex;
+		}
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_UP){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			curimg->yoff = -50.0 * SCR_H / (curimg->h * curimg->scaley);
+			curimg->xoff = -50.0;
+		}else{
+			curimg->yoff -= SHIFT_PX / curimg->h * 100 / curimg->scaley;
+		}
+		rndr = true;
+	};
+
+
+	GEN_CALLBACK(SDLK_DOWN){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			curimg->yoff = (100.0 * SCR_H / (2 * curimg->h * curimg->scaley) - 100.0);
+			curimg->xoff = -50.0;
+		}else{
+			curimg->yoff += SHIFT_PX / curimg->h * 100 / curimg->scaley;
+		}
+		rndr = true;
+	};
+
+
+	GEN_CALLBACK(SDLK_z){
+		curimg->scalex = curimg->scaley = 1;
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_c){
+		centerimg();
+	};
+
+	GEN_CALLBACK(SDLK_x){
+		curimg->xoff = -50;
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_v){
+		curimg->yoff = -50;
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_LALT){
+		altdn = true;
+	};
+
+	GEN_CALLBACK(SDLK_LCTRL){
+		ctrdn = true;
+	};
+
+	GEN_CALLBACK(SDLK_LSHIFT){
+		shftdn = true;
+	};
+
+	GEN_CALLBACK(SDLK_t){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			curimg->scalex = static_cast<float>(SCR_W) / curimg->w;
+			curimg->scaley = static_cast<float>(SCR_H) / curimg->h;
+			rndr = true;
+		}else{
+			fitimgwin();
+		}
+	};
+
+	GEN_CALLBACK(SDLK_g){
+		fitimgwin();
+		centerimg();
+		curimg->theta = 0;
+	};
+
+	GEN_CALLBACK(SDLK_r){
+		curimg->scalex = curimg->scaley = static_cast<float>(SCR_W) / curimg->w;
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_y){
+		curimg->scalex = curimg->scaley = static_cast<float>(SCR_H) / curimg->h;
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_2){
+		scaleimg(SCALE_DEGREE, SCALE_DEGREE, true);
+	};
+	REG_CALLBACK(SDLK_EQUALS, actions[SDLK_2]);
+
+	GEN_CALLBACK(SDLK_1){
+		scaleimg(SCALE_DEGREE, SCALE_DEGREE, false);
+	};
+	REG_CALLBACK(SDLK_MINUS, actions[SDLK_1]);
+
+	GEN_CALLBACK(SDLK_COMMA){
+		left_img();
+	};
+
+	GEN_CALLBACK(SDLK_PERIOD){
+		right_img();
+	};
+
+	GEN_CALLBACK(SDLK_i){
+		fixwintoimg();
+	};
+
+	GEN_CALLBACK(SDLK_q){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			int thetan = static_cast<int>(curimg->theta);
+			int r = thetan % 90;
+			thetan /= 90;
+			
+			curimg->theta = ((thetan - 1 * (r == 0) + (thetan < 1) * 4) * 90);
+		}else{
+			curimg->theta -= 5 - (curimg->theta < 5) * 360;
+		}
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_e){
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			curimg->theta = ((static_cast<int>(curimg->theta) / 90 + 1) * 90) % 360;
+		}else{
+			curimg->theta += 5 - (curimg->theta >= 355) * 360;
+		}
+		rndr = true;
+	};
+
+	GEN_CALLBACK(SDLK_DELETE){
+		if(albm.size() > 1){
+			stop_gif_thread();
+			int boof = albmi;
+			gif_active = false;
+			unloadimg(boof);
+			albm.erase(albm.begin() + boof);
+			left_img();
+		}
+	};
+}
+
+/***************/
+
 int main(int argc, char** args){
     /* * CREATE WINDOW * */
     SDL_Init(SDL_INIT_VIDEO);
@@ -196,6 +378,7 @@ int main(int argc, char** args){
     g = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+
 
     int argi = 1;
     //TODO add sort method flag
@@ -301,6 +484,8 @@ int main(int argc, char** args){
         fitimgwin();
     }
     
+	init_default_actions();
+
     /* * RUN * */
     SDL_Event e;
     bool run = true;
@@ -342,169 +527,7 @@ int main(int argc, char** args){
                 }
                 break;
             case SDL_KEYDOWN:
-                switch(e.key.keysym.sym){
-                case SDLK_b:
-                    if(fscr) togglefscr();
-                    border = !border;
-                    SDL_SetWindowBordered(win, (SDL_bool) border);
-                    break;
-                case SDLK_f:
-                    togglefscr();
-                    break;
-//                case SDLK_a:
-//                    if(e.key.keysym.mod & KMOD_CTRL){
-//                        alias = !alias;
-//                        bool r = SDL_SetHintWithPriority(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1", SDL_HINT_OVERRIDE);
-//                        sivlog << r << ", alias toggled " << alias << "\n";
-//                        rndr = true;
-//                        break;
-//                    }
-                case SDLK_LEFT:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-//                        curimg->xoff = -50.0 * curimg->scalex;
-                        curimg->xoff = -50.0 * SCR_W / (curimg->w * curimg->scalex);
-                        curimg->yoff = -50.0;
-                    }else{
-                        //50px
-//                        curimg->xoff -= SHIFT_DEGREE / curimg->scalex;
-                        curimg->xoff -= SHIFT_PX / curimg->w * 100 / curimg->scalex;
-                    }
-                    rndr = true;
-                    break;
-                case SDLK_d:
-                case SDLK_RIGHT:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->xoff = (100.0 * SCR_W / (2 * curimg->w * curimg->scalex) - 100.0);
-                        curimg->yoff = -50.0;
-                    }else{
-//                        curimg->xoff += SHIFT_DEGREE / curimg->scalex;
-                        curimg->xoff += SHIFT_PX / curimg->w * 100 / curimg->scalex;
-                    }
-                    rndr = true;
-                    break;
-                case SDLK_w:
-                    if(e.key.keysym.mod & KMOD_CTRL){
-                        curimg->theta = 0;
-                        rndr = true;
-                        break;
-                    }
-                case SDLK_UP:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-//                        curimg->yoff = -50.0 * curimg->scaley;
-                        curimg->yoff = -50.0 * SCR_H / (curimg->h * curimg->scaley);
-                        curimg->xoff = -50.0;
-                    }else{
-//                        curimg->yoff -= SHIFT_PX / curimg->scaley;
-                        curimg->yoff -= SHIFT_PX / curimg->h * 100 / curimg->scaley;
-                    }
-                    rndr = true;
-                    break;
-                case SDLK_s:
-                case SDLK_DOWN:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-//                        curimg->yoff = 50.0 * curimg->scaley;
-                        curimg->yoff = (100.0 * SCR_H / (2 * curimg->h * curimg->scaley) - 100.0);
-                        curimg->xoff = -50.0;
-                    }else{
-//                        curimg->yoff += SHIFT_PX / curimg->scaley;
-                        curimg->yoff += SHIFT_PX / curimg->h * 100 / curimg->scaley;
-                    }
-                    rndr = true;
-                    break;
-                case SDLK_z:
-                    curimg->scalex = curimg->scaley = 1;
-                    rndr = true;
-                    break;
-                case SDLK_c:
-                    centerimg();
-                    break;
-                case SDLK_x:
-                    curimg->xoff = -50;
-                    rndr = true;
-                    break;
-                case SDLK_v:
-                    curimg->yoff = -50;
-                    rndr = true;
-                    break;
-                case SDLK_LALT:
-                    altdn = true;
-                    break;
-                case SDLK_LCTRL:
-                    ctrdn = true;
-                    break;
-                case SDLK_LSHIFT:
-                    shftdn = true;
-                    break;
-                case SDLK_t:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->scalex = static_cast<float>(SCR_W) / curimg->w;
-                        curimg->scaley = static_cast<float>(SCR_H) / curimg->h;
-                        rndr = true;
-                    }else{
-                        fitimgwin();
-                    }
-                    break;
-                case SDLK_g:
-                    fitimgwin();
-                    centerimg();
-                    curimg->theta = 0;
-                    break;
-                case SDLK_r:
-                    curimg->scalex = curimg->scaley = static_cast<float>(SCR_W) / curimg->w;
-                    rndr = true;
-                    break;
-                case SDLK_y:
-                    curimg->scalex = curimg->scaley = static_cast<float>(SCR_H) / curimg->h;
-                    rndr = true;
-                    break;
-                case SDLK_EQUALS:
-                case SDLK_2:
-                    scaleimg(SCALE_DEGREE, SCALE_DEGREE, true);
-                    break;
-                case SDLK_MINUS:
-                case SDLK_1:
-                    scaleimg(SCALE_DEGREE, SCALE_DEGREE, false);
-                    break;
-                case SDLK_COMMA:
-                    left_img();
-                    break;
-                case SDLK_PERIOD:
-                    right_img();
-                    break;
-                case SDLK_i:
-                    fixwintoimg();
-                    break;
-                case SDLK_q:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-                        int thetan = static_cast<int>(curimg->theta);
-                        int r = thetan % 90;
-                        thetan /= 90;
-                        
-                        curimg->theta = ((thetan - 1 * (r == 0) + (thetan < 1) * 4) * 90);
-                    }else{
-                        curimg->theta -= 5 - (curimg->theta < 5) * 360;
-                    }
-                    rndr = true;
-                    break;
-                case SDLK_e:
-                    if(e.key.keysym.mod & KMOD_SHIFT){
-                        curimg->theta = ((static_cast<int>(curimg->theta) / 90 + 1) * 90) % 360;
-                    }else{
-                        curimg->theta += 5 - (curimg->theta >= 355) * 360;
-                    }
-                    rndr = true;
-                    break;
-                case SDLK_DELETE:
-                    if(albm.size() > 1){
-                        stop_gif_thread();
-                        int boof = albmi;
-                        gif_active = false;
-                        unloadimg(boof);
-                        albm.erase(albm.begin() + boof);
-                        left_img();
-                    }
-                    break;
-                }
+				if(actions.count(e.key.keysym.sym)) actions[e.key.keysym.sym](e);
                 break;
             case SDL_QUIT:
                 run = false;
@@ -527,14 +550,12 @@ int main(int argc, char** args){
                         break;
                     }
                     
-                    switch(e.button.x > SCR_W / 2){
-                    case true:
-                        right_img();
-                        break;
-                    case false:
-                        left_img();
-                        break;
-                    }
+					if(e.button.x > SCR_W / 2){
+						right_img();
+					}else{
+						left_img();
+					}
+
                     break;
                 }
                 btn = false;
