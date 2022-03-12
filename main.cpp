@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iostream>
 #include <cmath>
 #include <vector>
@@ -368,7 +369,25 @@ void init_default_actions(){
 
 /***************/
 
+void usage(){
+	cout << "siv [OPTIONS...] [FILES...]\n"
+			"\t-v\tverbose -- print debug messages\n"
+			"\t-a\talias -- disable anti-aliasing\n";
+}
+
+/***************/
+
 int main(int argc, char** args){
+	if(argc < 2){
+		cerr << "Siv: Too few args!\n";
+		exit(1);
+	}
+
+	if(!strcmp("--help", args[1]) || !strcmp("-h", args[1])){
+		usage();
+		exit(0);
+	}
+
     /* * CREATE WINDOW * */
     SDL_Init(SDL_INIT_VIDEO);
     IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP);
@@ -379,10 +398,10 @@ int main(int argc, char** args){
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
+    /* * HANDLE ARGS * */
     int argi = 1;
     //TODO add sort method flag
     while(argi < argc && args[argi][0] == '-'){
-		cout << args[argi][1] << '\n';
         switch(args[argi][1]){
         case 'v':
             verbose = true;
@@ -391,8 +410,9 @@ int main(int argc, char** args){
             alias = true;
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
+		//TODO deal with --help if not first argument
 		default:
-			cerr << "Invalid argument: " << args[argi] << '\n';
+			cerr << "Siv: Invalid argument: " << args[argi] << '\n';
 			siv_quit(1);
         }
         sivlog << "Argument " << args[argi] << "\n";
