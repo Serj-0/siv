@@ -1,10 +1,8 @@
 #include <iostream>
-#include <fstream>
 #include <cmath>
 #include <vector>
 #include <algorithm>
 #include <pthread.h>
-#include <csignal>
 #include <chrono>
 #include <map>
 #include "SDL2/SDL.h"
@@ -97,11 +95,12 @@ vector<string> exts = {
         };
 
 //config and flags
-bool loaddir = false;
 bool verbose = false;
 bool alias = false;
 int buffer = 100;
 
+//TODO usage text function
+void siv_quit(int);
 void render();
 void render_gif();
 void fitimgwin();
@@ -194,6 +193,7 @@ inline void stop_gif_thread(){
 
 map<SDL_Keycode, void(*)(SDL_Event&)> actions;
 
+//TODO reload directory
 void init_default_actions(){
 	GEN_CALLBACK(SDLK_b){
 		if(fscr) togglefscr();
@@ -379,14 +379,11 @@ int main(int argc, char** args){
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-
     int argi = 1;
     //TODO add sort method flag
     while(argi < argc && args[argi][0] == '-'){
+		cout << args[argi][1] << '\n';
         switch(args[argi][1]){
-        case 'd':
-            loaddir = true;
-            break;
         case 'v':
             verbose = true;
             break;
@@ -394,74 +391,36 @@ int main(int argc, char** args){
             alias = true;
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
+		default:
+			cerr << "Invalid argument: " << args[argi] << '\n';
+			siv_quit(1);
         }
         sivlog << "Argument " << args[argi] << "\n";
         argi++;
     }
     
     /* * LOAD IMAGES * */
-    if(!loaddir){
-        if(argi < argc){
-            while(argi < argc){
-                sivlog << "Adding: " << args[argi] << "\n";
-                addimg(args[argi++]);
-            }
-        }else{
-            sivlog << "No file argument, reading STDIN\n";
-            char in[BUFSIZ];
-            while(cin.getline(in, BUFSIZ)){
-                sivlog << "Adding: " << in << "\n";
-                addimg(in);
-            }
-        }
-        
-        if(!albm.size()){
-            cout << "No files given!\n";
-        }
-        
-        loadimg(0);
-        setimg(0);
-    }else{
-        sivlog << "Loading directory\n";
-        
-        int dic = 0;
-        path fug;
-        bool fugged = false;
-        if(argi < argc){
-            fug = path(args[argi]).parent_path();
-            fugged = true;
-        }else{
-            fug = current_path();
-        }
-        sivlog << "Directory: " << fug.string() << "\n";
-
-        if(!exists(fug)){
-            fug = current_path();
-            fugged = true;
-            sivlog << "Path does not exist. current path: " << fug.string() << "\n";
-        }
-        
-        //TODO maybe replace with different image detection method
-        add_directory_images(fug);
-        
-        sort(albm.begin(), albm.end(), comp_img);
-        
-        if(fugged){
-            sivlog << "Sorted:\n";
-            for(int i = 0; i < albm.size(); i++){
-                if(canonical(path(albm[i].path)) == canonical(path(args[argi]))){
-                    dic = i;
-                    sivlog << "Selected image -> ";
-                }
-                sivlog << i << ": " << albm[i].path << "\n";
-            }
-        }
-        
-        albmi = dic;
-        loadimg(albmi);
-        setimg(albmi);
-        sivlog << curimg->path << " loaded as main image, diri: " << albmi << endl;
-    }
+	if(argi < argc){
+		while(argi < argc){
+			sivlog << "Adding: " << args[argi] << "\n";
+			addimg(args[argi++]);
+		}
+	}else{
+		sivlog << "No file argument, reading STDIN\n";
+		char in[BUFSIZ];
+		while(cin.getline(in, BUFSIZ)){
+			sivlog << "Adding: " << in << "\n";
+			addimg(in);
+		}
+	}
+	
+	if(!albm.size()){
+		cout << "No files given!\n";
+		siv_quit(1);
+	}
+	
+	loadimg(0);
+	setimg(0);
     
     SDL_WaitEvent(nullptr);
     
@@ -615,6 +574,10 @@ int main(int argc, char** args){
         }
     }
 
+	siv_quit(0);
+}
+
+void siv_quit(int r){
     stop_gif_thread();
     
     for(int i = 0; i < albm.size(); i++) unloadimg(i);
@@ -622,7 +585,7 @@ int main(int argc, char** args){
     SDL_DestroyWindow(win);
     IMG_Quit();
     SDL_Quit();
-    return 0;
+	exit(r);
 }
 
 //TODO actually render it properly
