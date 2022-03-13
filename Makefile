@@ -11,6 +11,12 @@ build:
 	$(AR) rcs $(GW)/libgifwrap.a $(GW)/$(GW).o
 	$(CXX) $(CPPFLAGS) -o siv
 
+debug:
+	./deps
+	$(CC) $(CFLAGS) $(GW)/$(GW).c -o $(GW)/$(GW).o
+	$(AR) rcs $(GW)/libgifwrap.a $(GW)/$(GW).o
+	$(CXX) -g $(CPPFLAGS) -o siv
+
 install: build
 	mv siv $(BINDIR)/siv
 

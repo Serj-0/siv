@@ -1,3 +1,4 @@
+#include <boost/filesystem/operations.hpp>
 #include <cstring>
 #include <iostream>
 #include <cmath>
@@ -100,7 +101,6 @@ bool verbose = false;
 bool alias = false;
 int buffer = 100;
 
-//TODO usage text function
 void siv_quit(int);
 void render();
 void render_gif();
@@ -139,6 +139,13 @@ void add_directory_images(path dir){
 
 inline bool num(const char& c){
     return c >= 0x30 && c <= 0x39;
+}
+
+bool albm_contains(const char* str){
+	for(image& img : albm){
+		if(equivalent(str, img.path)) return true;
+	}
+	return false;
 }
 
 bool comp_img(const image& a, const image& b){
@@ -194,7 +201,6 @@ inline void stop_gif_thread(){
 
 map<SDL_Keycode, void(*)(SDL_Event&)> actions;
 
-//TODO reload directory
 void init_default_actions(){
 	GEN_CALLBACK(SDLK_b){
 		if(fscr) togglefscr();
@@ -379,7 +385,7 @@ void usage(){
 
 int main(int argc, char** args){
 	if(argc < 2){
-		cerr << "Siv: Too few args!\n";
+		cerr << "siv: Too few args!\n";
 		exit(1);
 	}
 
@@ -410,9 +416,8 @@ int main(int argc, char** args){
             alias = true;
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
-		//TODO deal with --help if not first argument
 		default:
-			cerr << "Siv: Invalid argument: " << args[argi] << '\n';
+			cerr << "siv: Invalid argument: " << args[argi] << '\n';
 			siv_quit(1);
         }
         sivlog << "Argument " << args[argi] << "\n";
@@ -422,15 +427,20 @@ int main(int argc, char** args){
     /* * LOAD IMAGES * */
 	if(argi < argc){
 		while(argi < argc){
-			sivlog << "Adding: " << args[argi] << "\n";
-			addimg(args[argi++]);
+			if(!albm_contains(args[argi])){
+				sivlog << "Adding: " << args[argi] << "\n";
+				addimg(args[argi]);
+			}
+			argi++;
 		}
 	}else{
 		sivlog << "No file argument, reading STDIN\n";
 		char in[BUFSIZ];
 		while(cin.getline(in, BUFSIZ)){
-			sivlog << "Adding: " << in << "\n";
-			addimg(in);
+			if(!albm_contains(in)){
+				sivlog << "Adding: " << in << "\n";
+				addimg(in);
+			}
 		}
 	}
 	
@@ -438,9 +448,29 @@ int main(int argc, char** args){
 		cout << "No files given!\n";
 		siv_quit(1);
 	}
+
+	//sort image list, go to first image given in args
+	{
+		string initimg = albm[0].path;
+		sivlog << "first image given: " << initimg << '\n';
+
+		sort(albm.begin(), albm.end(), comp_img);
+		int initi = 0;
+
+		for(unsigned int i = 0; i < albm.size(); i++){
+			if(equivalent(albm[i].path, initimg)){
+				sivlog << "first image now at index " << i << '\n';
+				initi = i;
+				break;
+			}
+		}
+
+		curimg = &albm[initi];
+		albmi = initi;
+	}
 	
-	loadimg(0);
-	setimg(0);
+	loadimg(albmi);
+	setimg(albmi);
     
     SDL_WaitEvent(nullptr);
     
@@ -477,14 +507,14 @@ int main(int argc, char** args){
         
         //TODO implement album mode
         if(albmmode){
-            switch(e.type){
-            case SDL_KEYDOWN:
+//            switch(e.type){
+//            case SDL_KEYDOWN:
 //                switch(e.key.keysym.sym){
 //                case SDLK_a:
 //                }
-                break;
-            }
-            int aw = static_cast<int>(sqrt(albm.size())) + 1;
+//                break;
+//            }
+            //int aw = static_cast<int>(sqrt(albm.size())) + 1;
         }else{
             rndr = false;
             
@@ -580,7 +610,7 @@ int main(int argc, char** args){
                     fitimgwin();
                     sivlog << e.drop.file << " loaded from drop\n";
                 }else{
-                    for(int i = 0; i < albm.size(); i++){
+                    for(unsigned int i = 0; i < albm.size(); i++){
                         if(strcmp(albm[i].path.c_str(), e.drop.file)){
                             albmi = i;
                             setimg(albmi);
@@ -600,7 +630,7 @@ int main(int argc, char** args){
 void siv_quit(int r){
     stop_gif_thread();
     
-    for(int i = 0; i < albm.size(); i++) unloadimg(i);
+    for(unsigned int i = 0; i < albm.size(); i++) unloadimg(i);
     SDL_DestroyRenderer(g);
     SDL_DestroyWindow(win);
     IMG_Quit();
@@ -663,16 +693,16 @@ void render(){
     sivlog << "rendered " << clock() << "\n";
 }
 
-float fitconstraints(SDL_Rect rect, coord bounds){
-    float scl = 1;
-    
-    if(static_cast<float>(bounds.x) / static_cast<float>(bounds.y) > static_cast<float>(rect.w) / static_cast<float>(rect.h)){
-        scl = static_cast<float>(bounds.x) / static_cast<float>(rect.h);
-    }else{
-        scl = static_cast<float>(bounds.x) / static_cast<float>(rect.w);
-    }
-    return 0;
-}
+//float fitconstraints(SDL_Rect rect, coord bounds){
+//    float scl = 1;
+//    
+//    if(static_cast<float>(bounds.x) / static_cast<float>(bounds.y) > static_cast<float>(rect.w) / static_cast<float>(rect.h)){
+//        scl = static_cast<float>(bounds.x) / static_cast<float>(rect.h);
+//    }else{
+//        scl = static_cast<float>(bounds.x) / static_cast<float>(rect.w);
+//    }
+//    return 0;
+//}
 
 void fitimgwin(){
     float scl = 1;
@@ -731,7 +761,6 @@ inline int addimg(const char* path){
     return 1;
 }
 
-//TODO load gif frames with rastered overlay
 void loadimg(int i){
     image& nimg = albm[i];
     if(!nimg.img && !nimg.gif.frames){
