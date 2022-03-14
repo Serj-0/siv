@@ -1,3 +1,4 @@
+#include <SDL2/SDL_keycode.h>
 #include <cstring>
 #include <iostream>
 #include <cmath>
@@ -216,8 +217,6 @@ void init_default_actions(){
 	};
 
 	GEN_CALLBACK(SDLK_w){
-		curimg->theta = 0;
-		rndr = true;
 	};
 
 	GEN_CALLBACK(SDLK_LEFT){
@@ -229,6 +228,7 @@ void init_default_actions(){
 		}
 		rndr = true;
 	};
+	REG_CALLBACK(SDLK_a, actions[SDLK_LEFT]);
 
 
 	GEN_CALLBACK(SDLK_RIGHT){
@@ -240,17 +240,21 @@ void init_default_actions(){
 		}
 		rndr = true;
 	};
+	REG_CALLBACK(SDLK_d, actions[SDLK_RIGHT]);
 
 	GEN_CALLBACK(SDLK_UP){
 		if(e.key.keysym.mod & KMOD_SHIFT){
 			curimg->yoff = -50.0 * SCR_H / (curimg->h * curimg->scaley);
 			curimg->xoff = -50.0;
+		}else if(e.key.keysym.mod & KMOD_CTRL){
+			curimg->theta = 0;
+			rndr = true;
 		}else{
 			curimg->yoff -= SHIFT_PX / curimg->h * 100 / curimg->scaley;
 		}
 		rndr = true;
 	};
-
+	REG_CALLBACK(SDLK_w, actions[SDLK_UP]);
 
 	GEN_CALLBACK(SDLK_DOWN){
 		if(e.key.keysym.mod & KMOD_SHIFT){
@@ -261,7 +265,7 @@ void init_default_actions(){
 		}
 		rndr = true;
 	};
-
+	REG_CALLBACK(SDLK_s, actions[SDLK_DOWN]);
 
 	GEN_CALLBACK(SDLK_z){
 		curimg->scalex = curimg->scaley = 1;
