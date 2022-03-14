@@ -1,8 +1,8 @@
-#include <boost/filesystem/operations.hpp>
 #include <cstring>
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <set>
 #include <algorithm>
 #include <pthread.h>
 #include <chrono>
@@ -11,6 +11,7 @@
 #include "SDL2/SDL_image.h"
 #include "SDL_gifwrap/SDL_gifwrap.h"
 #include "boost/filesystem.hpp"
+#include "boost/sort/spreadsort/string_sort.hpp"
 
 #define SCALE_DEGREE 1.1
 #define SHIFT_PX 50.0
@@ -81,12 +82,13 @@ bool rndr;
 
 vector<image> albm;
 
-vector<string> exts = {
+set<string> exts = {
             ".png",
             ".jpg",
             ".jpeg",
             ".jfif",
             ".gif",
+			".tif",
             ".tiff",
             ".webp",
             ".bmp",
@@ -97,8 +99,11 @@ vector<string> exts = {
         };
 
 //config and flags
+//TODO add `force` flag to load given files with no consideration to filetype
+//TODO add buffer flag to change buffer size
 bool verbose = false;
 bool alias = false;
+bool force = false;
 int buffer = 100;
 
 void siv_quit(int);
@@ -454,7 +459,15 @@ int main(int argc, char** args){
 		string initimg = albm[0].path;
 		sivlog << "first image given: " << initimg << '\n';
 
-		sort(albm.begin(), albm.end(), comp_img);
+		auto __getchar = [](const image& a, size_t i){
+			return a.path[i];
+		};
+
+		auto __getlen = [](const image& a){
+			return a.path.length();
+		};
+	
+		sort::spreadsort::string_sort(albm.begin(), albm.end(), __getchar, __getlen, comp_img);
 		int initi = 0;
 
 		for(unsigned int i = 0; i < albm.size(); i++){
