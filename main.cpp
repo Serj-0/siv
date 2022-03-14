@@ -99,8 +99,6 @@ set<string> exts = {
         };
 
 //config and flags
-//TODO add `force` flag to load given files with no consideration to filetype
-//TODO add buffer flag to change buffer size
 bool verbose = false;
 bool alias = false;
 bool force = false;
@@ -399,16 +397,6 @@ int main(int argc, char** args){
 		exit(0);
 	}
 
-    /* * CREATE WINDOW * */
-    SDL_Init(SDL_INIT_VIDEO);
-    IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP);
-    SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
-    win = SDL_CreateWindow("Serj Image Viewer", mpos.x, mpos.y, SCR_W, SCR_H, 0);
-    SDL_SetWindowResizable(win, SDL_TRUE);
-    g = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-    SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-
     /* * HANDLE ARGS * */
     int argi = 1;
     //TODO add sort method flag
@@ -419,11 +407,20 @@ int main(int argc, char** args){
             break;
         case 'a':
             alias = true;
-            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             break;
+		case 'f':
+			force = true;
+			break;
+		case 'b':
+			if(argc - argi < 2){
+				cerr << "siv: Missing argument for -b!\n";
+				return 1;
+			}
+			try{ buffer = stoi(args[argi + 1]); }catch(...){ cerr << "siv: Invalid argument for -b! \"" + string(args[argi + 1]) + "\"\n"; return 1; }
+			break;
 		default:
 			cerr << "siv: Invalid argument: " << args[argi] << '\n';
-			siv_quit(1);
+			return 1;
         }
         sivlog << "Argument " << args[argi] << "\n";
         argi++;
@@ -432,7 +429,7 @@ int main(int argc, char** args){
     /* * LOAD IMAGES * */
 	if(argi < argc){
 		while(argi < argc){
-			if(!albm_contains(args[argi])){
+			if((force || exts.count(path(args[argi]).extension().string())) && !albm_contains(args[argi])){
 				sivlog << "Adding: " << args[argi] << "\n";
 				addimg(args[argi]);
 			}
@@ -442,7 +439,7 @@ int main(int argc, char** args){
 		sivlog << "No file argument, reading STDIN\n";
 		char in[BUFSIZ];
 		while(cin.getline(in, BUFSIZ)){
-			if(!albm_contains(in)){
+			if((force || exts.count(path(in).extension().string())) && !albm_contains(in)){
 				sivlog << "Adding: " << in << "\n";
 				addimg(in);
 			}
@@ -459,15 +456,15 @@ int main(int argc, char** args){
 		string initimg = albm[0].path;
 		sivlog << "first image given: " << initimg << '\n';
 
-		auto __getchar = [](const image& a, size_t i){
+		auto srt_getch = [](const image& a, size_t i){
 			return a.path[i];
 		};
 
-		auto __getlen = [](const image& a){
+		auto srt_getlen = [](const image& a){
 			return a.path.length();
 		};
 	
-		sort::spreadsort::string_sort(albm.begin(), albm.end(), __getchar, __getlen, comp_img);
+		sort::spreadsort::string_sort(albm.begin(), albm.end(), srt_getch, srt_getlen, comp_img);
 		int initi = 0;
 
 		for(unsigned int i = 0; i < albm.size(); i++){
@@ -481,6 +478,16 @@ int main(int argc, char** args){
 		curimg = &albm[initi];
 		albmi = initi;
 	}
+
+    /* * CREATE WINDOW * */
+    SDL_Init(SDL_INIT_VIDEO);
+    IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP);
+    SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
+    win = SDL_CreateWindow("Serj Image Viewer", mpos.x, mpos.y, SCR_W, SCR_H, 0);
+    SDL_SetWindowResizable(win, SDL_TRUE);
+    g = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_string(!alias).c_str());
 	
 	loadimg(albmi);
 	setimg(albmi);
