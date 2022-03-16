@@ -1,7 +1,10 @@
 #include <SDL2/SDL_keycode.h>
+#include <SDL2/SDL_render.h>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <cmath>
+#include <ratio>
 #include <vector>
 #include <set>
 #include <algorithm>
@@ -25,19 +28,13 @@ using namespace std;
 using namespace boost;
 using namespace boost::filesystem;
 
-//filesystem::ifstream ist;
-//string str;
-
 int SCR_W = 500, SCR_H = 500;
-//int IMG_W, IMG_H;
 SDL_Rect rectbfr, recttmp, rectscl;
 
 bool fscr = false, border = true;
 bool btn, altdn, ctrdn, shftdn;
 bool albmmode = false;
 bool tilemode = true;
-
-//int ms.x, ms.y;
 
 struct f_pair{
     float x, y;
@@ -51,9 +48,10 @@ struct gifimg{
     int count;
     SDL_Texture** frames;
     long* timetable;
-    f_pair* offset;
+    coord* offset;
     int current_frame;
     bool* overlay;
+	SDL_Texture* target;
 };
 
 struct image{
@@ -155,7 +153,8 @@ bool albm_contains(const char* str){
 bool comp_img(const image& a, const image& b){
     string anum = "", bnum = "";
     
-    char* ac = const_cast<char*>(&a.path[0]), *bc = const_cast<char*>(&b.path[0]);
+    char* ac = const_cast<char*>(&a.path[0]);
+	char* bc = const_cast<char*>(&b.path[0]);
 
 //    cout << "[!] comparing " << a.path << " , " << b.path << "\n";
     while(*ac != 0 && *bc != 0){
@@ -180,7 +179,7 @@ bool comp_img(const image& a, const image& b){
                 }
             }
             
-            if(anum != bnum) return stod(anum) < stod(bnum);
+            if(anum != bnum) return stol(anum) < stol(bnum);
             anum.clear();
             bnum.clear();
         }else if(*ac != *bc){
@@ -384,8 +383,10 @@ void init_default_actions(){
 
 void usage(){
 	cout << "siv [OPTIONS...] [FILES...]\n"
-			"\t-v\tverbose -- print debug messages\n"
-			"\t-a\talias -- disable anti-aliasing\n";
+			"\t-v\t\tverbose -- print debug messages\n"
+			"\t-a\t\talias -- disable anti-aliasing\n"
+			"\t-f\t\tforce -- load all given files regardless if they are images\n"
+			"\t-b [SIZE]\tbuffer -- set buffer size\n";
 }
 
 /***************/
@@ -433,7 +434,7 @@ int main(int argc, char** args){
     /* * LOAD IMAGES * */
 	if(argi < argc){
 		while(argi < argc){
-			if((force || exts.count(path(args[argi]).extension().string())) && !albm_contains(args[argi])){
+			if(!albm_contains(args[argi]) && (force || exts.count(lowcase(path(args[argi]).extension().string())))){
 				sivlog << "Adding: " << args[argi] << "\n";
 				addimg(args[argi]);
 			}
@@ -443,7 +444,7 @@ int main(int argc, char** args){
 		sivlog << "No file argument, reading STDIN\n";
 		char in[BUFSIZ];
 		while(cin.getline(in, BUFSIZ)){
-			if((force || exts.count(path(in).extension().string())) && !albm_contains(in)){
+			if(!albm_contains(in) && (force || exts.count(lowcase(path(in).extension().string())))){
 				sivlog << "Adding: " << in << "\n";
 				addimg(in);
 			}
@@ -489,7 +490,7 @@ int main(int argc, char** args){
     SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
     win = SDL_CreateWindow("Serj Image Viewer", mpos.x, mpos.y, SCR_W, SCR_H, 0);
     SDL_SetWindowResizable(win, SDL_TRUE);
-    g = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    g = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_string(!alias).c_str());
 	
@@ -529,124 +530,111 @@ int main(int argc, char** args){
     while(run){
         SDL_WaitEvent(&e);
         
-        //TODO implement album mode
-        if(albmmode){
-//            switch(e.type){
-//            case SDL_KEYDOWN:
-//                switch(e.key.keysym.sym){
-//                case SDLK_a:
-//                }
-//                break;
-//            }
-            //int aw = static_cast<int>(sqrt(albm.size())) + 1;
-        }else{
-            rndr = false;
-            
-            switch(e.type){
-            case SDL_KEYUP:
-                switch(e.key.keysym.sym){
-                case SDLK_LALT:
-                    altdn = false;
-                    break;
-                case SDLK_LCTRL:
-                    ctrdn = false;
-                    break;
-                case SDLK_LSHIFT:
-                    shftdn = false;
-                    break;
-                case SDLK_ESCAPE:
-                    run = false;
-                    break;
-                }
-                break;
-            case SDL_KEYDOWN:
-				if(actions.count(e.key.keysym.sym)) actions[e.key.keysym.sym](e);
-                break;
-            case SDL_QUIT:
-                run = false;
-                break;
-            case SDL_MOUSEBUTTONDOWN:
-                if(e.button.button == SDL_BUTTON_LEFT){
-                    btn = true;
-                    SDL_GetGlobalMouseState(&ms.x, &ms.y);
-                    int wx, wy;
-                    SDL_GetWindowPosition(win, &wx, &wy);
-                    ms.x -= wx;
-                    ms.y -= wy;
-                }
-                break;
-            //TODO double click to fullscreen maybe
-            case SDL_MOUSEBUTTONUP:
-                if(e.button.button == SDL_BUTTON_RIGHT){
-                    if(e.button.x > SCR_W - 50 && e.button.y < 50){
-                        run = false;
-                        break;
-                    }
-                    
-					if(e.button.x > SCR_W / 2){
-						right_img();
-					}else{
-						left_img();
-					}
+		rndr = false;
+		
+		switch(e.type){
+		case SDL_KEYUP:
+			switch(e.key.keysym.sym){
+			case SDLK_LALT:
+				altdn = false;
+				break;
+			case SDLK_LCTRL:
+				ctrdn = false;
+				break;
+			case SDLK_LSHIFT:
+				shftdn = false;
+				break;
+			case SDLK_ESCAPE:
+				run = false;
+				break;
+			}
+			break;
+		case SDL_KEYDOWN:
+			if(actions.count(e.key.keysym.sym)) actions[e.key.keysym.sym](e);
+			break;
+		case SDL_QUIT:
+			run = false;
+			break;
+		case SDL_MOUSEBUTTONDOWN:
+			if(e.button.button == SDL_BUTTON_LEFT){
+				btn = true;
+				SDL_GetGlobalMouseState(&ms.x, &ms.y);
+				int wx, wy;
+				SDL_GetWindowPosition(win, &wx, &wy);
+				ms.x -= wx;
+				ms.y -= wy;
+			}
+			break;
+		//TODO double click to fullscreen maybe
+		case SDL_MOUSEBUTTONUP:
+			if(e.button.button == SDL_BUTTON_RIGHT){
+				if(e.button.x > SCR_W - 50 && e.button.y < 50){
+					run = false;
+					break;
+				}
+				
+				if(e.button.x > SCR_W / 2){
+					right_img();
+				}else{
+					left_img();
+				}
 
-                    break;
-                }
-                btn = false;
-                break;
-            case SDL_MOUSEMOTION:
-                if(btn){
-                    if(altdn){
-                        SCR_W += e.motion.xrel;
-                        SCR_H += e.motion.yrel;
-                        SDL_SetWindowSize(win, SCR_W, SCR_H);
-                    }else if(ctrdn){
-                        curimg->theta = -atan2(SCR_W / 2 - e.motion.x, SCR_H / 2 - e.motion.y) * 180 / 3.14159;
-                    }else if(shftdn){
-                        //TODO implement region zoom
-                    }else if(!border){
-                        SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
-                        SDL_SetWindowPosition(win, mpos.x - ms.x, mpos.y - ms.y);
-                    }else{
-                        curimg->xoff += static_cast<float>(e.motion.xrel) / (curimg->w * curimg->scalex) * 100;
-                        curimg->yoff += static_cast<float>(e.motion.yrel) / (curimg->h * curimg->scaley) * 100;
-                    }
-                    rndr = true;
-                }
-                break;
-            case SDL_WINDOWEVENT:
-                if(e.window.event == SDL_WINDOWEVENT_RESIZED){
-                    SCR_W = e.window.data1;
-                    SCR_H = e.window.data2;
-                    rndr = true;
-                }else if(e.window.event == SDL_WINDOWEVENT_EXPOSED){
-                    rndr = true;
-                }
-                break;
-            case SDL_MOUSEWHEEL:
-                scaleimg(SCALE_DEGREE, SCALE_DEGREE, e.wheel.y > 0);
-                break;
-            case SDL_DROPFILE:
+				break;
+			}
+			btn = false;
+			break;
+		case SDL_MOUSEMOTION:
+			if(btn){
+				if(altdn){
+					SCR_W += e.motion.xrel;
+					SCR_H += e.motion.yrel;
+					SDL_SetWindowSize(win, SCR_W, SCR_H);
+				}else if(ctrdn){
+					curimg->theta = -atan2(SCR_W / 2 - e.motion.x, SCR_H / 2 - e.motion.y) * 180 / 3.14159;
+				}else if(shftdn){
+				}else if(!border){
+					SDL_GetGlobalMouseState(&mpos.x, &mpos.y);
+					SDL_SetWindowPosition(win, mpos.x - ms.x, mpos.y - ms.y);
+				}else{
+					curimg->xoff += static_cast<float>(e.motion.xrel) / (curimg->w * curimg->scalex) * 100;
+					curimg->yoff += static_cast<float>(e.motion.yrel) / (curimg->h * curimg->scaley) * 100;
+				}
+				rndr = true;
+			}
+			break;
+		case SDL_WINDOWEVENT:
+			if(e.window.event == SDL_WINDOWEVENT_RESIZED){
+				SCR_W = e.window.data1;
+				SCR_H = e.window.data2;
+				rndr = true;
+			}else if(e.window.event == SDL_WINDOWEVENT_EXPOSED){
+				rndr = true;
+			}
+			break;
+		case SDL_MOUSEWHEEL:
+			scaleimg(SCALE_DEGREE, SCALE_DEGREE, e.wheel.y > 0);
+			break;
+		case SDL_DROPFILE:
 //                dirimgs.push_back({e.drop.file, static_cast<int>(albm.size())});
-                if(addimg(e.drop.file)){
-                    albmi = albm.size() - 1;
-                    loadimg(albmi);
-                    setimg(albmi);
-                    fitimgwin();
-                    sivlog << e.drop.file << " loaded from drop\n";
-                }else{
-                    for(unsigned int i = 0; i < albm.size(); i++){
-                        if(strcmp(albm[i].path.c_str(), e.drop.file)){
-                            albmi = i;
-                            setimg(albmi);
-                        }
-                    }
-                }
-                break;
-            }
+			if(addimg(e.drop.file)){
+				albmi = albm.size() - 1;
+				loadimg(albmi);
+				setimg(albmi);
+				fitimgwin();
+				sivlog << e.drop.file << " loaded from drop\n";
+			}else{
+				for(unsigned int i = 0; i < albm.size(); i++){
+					if(strcmp(albm[i].path.c_str(), e.drop.file)){
+						albmi = i;
+						setimg(albmi);
+					}
+				}
+			}
+			break;
+		}
 
-            if(rndr) render();
-        }
-    }
+		if(rndr) render();
+	}
 
 	siv_quit(0);
 }
@@ -662,32 +650,43 @@ void siv_quit(int r){
 	exit(r);
 }
 
-//TODO actually render it properly
-//TODO add other post processes
 void render_gif(){
     if(gif_rendering) return;
     gif_rendering = true;
     
     SDL_Texture*& fr = curimg->gif.frames[curimg->gif.current_frame];
+	SDL_Texture*& targ = curimg->gif.target;
     
+	//draw frame to target
+	SDL_SetRenderTarget(g, targ);
+
     int w, h;
     SDL_QueryTexture(fr, nullptr, nullptr, &w, &h);
-    
-    rectscl =  {static_cast<int>(SCR_W / 2 + curimg->w * curimg->scalex * (curimg->xoff + curimg->gif.offset[curimg->gif.current_frame].x) / 100),
-                static_cast<int>(SCR_H / 2 + curimg->h * curimg->scaley * (curimg->yoff + curimg->gif.offset[curimg->gif.current_frame].y) / 100),
-                static_cast<int>(w * curimg->scalex),
-                static_cast<int>(h * curimg->scaley)};
-    
-    SDL_Point pp = {static_cast<int>(w * curimg->scalex / 2), static_cast<int>(h * curimg->scaley / 2)};
+
+    rectscl =  {static_cast<int>((curimg->gif.offset[curimg->gif.current_frame].x)),
+                static_cast<int>((curimg->gif.offset[curimg->gif.current_frame].y)),
+                w,
+                h};
     
     if(!curimg->gif.overlay[curimg->gif.current_frame]) SDL_RenderClear(g);
+	SDL_RenderCopy(g, fr, NULL, &rectscl);
+
+	//draw target to window
+	SDL_SetRenderTarget(g, nullptr);
+
+    rectscl =  {static_cast<int>(SCR_W / 2 + curimg->w * curimg->scalex * (curimg->xoff / 100)),
+                static_cast<int>(SCR_H / 2 + curimg->h * curimg->scaley * (curimg->yoff / 100)),
+                static_cast<int>(curimg->w * curimg->scalex),
+                static_cast<int>(curimg->h * curimg->scaley)};
     
-    if(curimg->theta){
-        SDL_RenderCopyEx(g, fr, NULL, &rectscl, curimg->theta, &pp, SDL_RendererFlip::SDL_FLIP_NONE);
-    }else{
-        SDL_RenderCopy(g, fr, NULL, &rectscl);
-    }
-    
+    SDL_Point cnt = {static_cast<int>(w * curimg->scalex / 2), static_cast<int>(h * curimg->scaley / 2)};
+
+	SDL_RenderClear(g);
+	if(curimg->theta){
+		SDL_RenderCopyEx(g, targ, NULL, &rectscl, curimg->theta, &cnt, SDL_RendererFlip::SDL_FLIP_NONE);
+	}else{
+		SDL_RenderCopy(g, targ, NULL, &rectscl);
+	}
     SDL_RenderPresent(g);
     gif_rendering = false;
 }
@@ -792,24 +791,27 @@ void loadimg(int i){
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
             GIF_Image* gif = GIF_LoadImage(nimg.path.c_str());
             nimg.gif.count = gif->num_frames;
-            
+
             nimg.gif.frames = new SDL_Texture*[nimg.gif.count];
             nimg.gif.timetable = new long[nimg.gif.count];
-            nimg.gif.offset = new f_pair[nimg.gif.count];
+            nimg.gif.offset = new coord[nimg.gif.count];
             nimg.gif.overlay = new bool[nimg.gif.count];
             
             nimg.w = gif->width;
             nimg.h = gif->height;
-            
+			
             for(int i = 0; i < nimg.gif.count; i++){
                 GIF_Frame*& fr = gif->frames[i];
-  
+
                 nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, fr->surface);
                 nimg.gif.timetable[i] = fr->delay + (!fr->delay * 100);
-                nimg.gif.offset[i] = {(float) fr->left_offset / gif->width * 100,
-                                      (float) fr->top_offset / gif->height * 100};
+                nimg.gif.offset[i] = {fr->left_offset, fr->top_offset};
                 nimg.gif.overlay[i] = gif->frames[i]->overlay_previous;
             }
+
+			uint32_t fmt;
+			SDL_QueryTexture(nimg.gif.frames[0], &fmt, 0, 0, 0);
+			nimg.gif.target = SDL_CreateTexture(g, fmt, SDL_TEXTUREACCESS_TARGET, nimg.w, nimg.h);
             
             GIF_FreeImage(gif);
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1");

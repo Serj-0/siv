@@ -18,7 +18,7 @@ debug:
 	$(CXX) -g $(CPPFLAGS) -o siv
 
 install: build
-	mv siv $(BINDIR)/siv
+	cp siv $(BINDIR)/siv
 
 uninstall:
 	rm $(BINDIR)/siv
