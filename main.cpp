@@ -74,8 +74,8 @@ SDL_Window* win;
 SDL_Renderer* g;
 
 image* curimg;
-int albmi = 0;
-int loaded = 0;
+size_t albmi = 0;
+size_t loaded = 0;
 
 bool rndr;
 
@@ -101,12 +101,12 @@ set<string> exts = {
 bool verbose = false;
 bool alias = false;
 bool force = false;
-int buffer = 100;
+size_t buffer = 100;
 
 void siv_quit(int);
 void render();
 void render_gif();
-void fitimgwin();
+void fitimgwin(int = albmi);
 inline void centerimg();
 void setwinsize(int, int);
 void fitwinmon();
@@ -327,9 +327,10 @@ void init_default_actions(){
 
 	GEN_CALLBACK(SDLK_1){
 		if(e.key.keysym.mod & KMOD_SHIFT){
-			int i = albmi;
+			size_t i = albmi;
+			stop_gif_thread();
 			sivlog << "Beginning full buffer load\n";
-			SDL_SetWindowTitle(win, "Loading full buffer!...");
+			SDL_SetWindowTitle(win, "Loading full buffer...!");
 			while(loaded < buffer){
 				i = i == albm.size() - 1 ? 0 : i + 1;
 				sivlog << i << '\n';
@@ -338,6 +339,8 @@ void init_default_actions(){
 					break;
 				}
 				loadimg(i);
+				fitimgwin(i);
+				SDL_SetWindowTitle(win, ("Loading full buffer [" + to_string(loaded) + "/" + to_string(albm.size()) + "]").c_str());
 			}
 			//TODO make load window title from img function
 			next_img();
@@ -489,7 +492,7 @@ int main(int argc, char** args){
 			}
 		}
 
-		curimg = &albm[initi];
+		//curimg = &albm[initi];
 		albmi = initi;
 	}
 
@@ -502,35 +505,38 @@ int main(int argc, char** args){
     g = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_string(!alias).c_str());
-	
-	next_img();
     
     /* * SIZE WINDOW * */
-    if(!tilemode){
-        SDL_GetDisplayBounds(0, &rectbfr);
-        if(albm[albmi].h > rectbfr.h || albm[albmi].w > rectbfr.w){
-            fitwinmon();
-        }else if(SCR_W == 0 && SCR_H == 0){
-            fitwinmon();
-            SCR_W = albm[albmi].w;
-            SCR_H = albm[albmi].h;
-            SDL_SetWindowSize(win, SCR_W, SCR_H);
-            SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            albm[albmi].scalex = albm[albmi].scaley = 1;
-        }
-    }else{
-        SDL_GetRendererOutputSize(g, &SCR_W, &SCR_H);
-        sivlog << "Renderer Output size: " << SCR_W << ", " << SCR_H << "\n";
-        fitimgwin();
-    }
+	//TODO idk whatever
+    //if(!tilemode){
+    //    SDL_GetDisplayBounds(0, &rectbfr);
+    //    if(albm[albmi].h > rectbfr.h || albm[albmi].w > rectbfr.w){
+    //        fitwinmon();
+    //    }else if(SCR_W == 0 && SCR_H == 0){
+    //        fitwinmon();
+    //        SCR_W = albm[albmi].w;
+    //        SCR_H = albm[albmi].h;
+    //        SDL_SetWindowSize(win, SCR_W, SCR_H);
+    //        SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    //        albm[albmi].scalex = albm[albmi].scaley = 1;
+    //    }
+    //}else{
+    //    SDL_GetRendererOutputSize(g, &SCR_W, &SCR_H);
+    //    sivlog << "Renderer Output size: " << SCR_W << ", " << SCR_H << "\n";
+    //    fitimgwin();
+    //}
     
 	init_default_actions();
+
+	//dumb window gives wrong size if we dont wait for one event
+	SDL_WaitEvent(nullptr);
+	SDL_GetRendererOutputSize(g, &SCR_W, &SCR_H);
+	next_img();
+	fitimgwin(albmi);
 
     /* * RUN * */
     SDL_Event e;
     bool run = true;
-    
-//    SDL_RenderClear(g);
     
     while(run){
         SDL_WaitEvent(&e);
@@ -620,14 +626,13 @@ int main(int argc, char** args){
 			scaleimg(SCALE_DEGREE, SCALE_DEGREE, e.wheel.y > 0);
 			break;
 		case SDL_DROPFILE:
-//                dirimgs.push_back({e.drop.file, static_cast<int>(albm.size())});
 			if(addimg(e.drop.file)){
 				albmi = albm.size() - 1;
 				next_img();
 				fitimgwin();
 				sivlog << e.drop.file << " loaded from drop\n";
 			}else{
-				for(unsigned int i = 0; i < albm.size(); i++){
+				for(size_t i = 0; i < albm.size(); i++){
 					if(equivalent(albm[i].path, e.drop.file)){
 						albmi = i;
 						next_img();
@@ -731,16 +736,17 @@ void render(){
 //    return 0;
 //}
 
-void fitimgwin(){
+void fitimgwin(int i){
+	image* img = &albm[i];
     float scl = 1;
 
-    if(static_cast<float>(SCR_W) / static_cast<float>(SCR_H) > static_cast<float>(curimg->w) / static_cast<float>(curimg->h)){
-        scl = static_cast<float>(SCR_H) / static_cast<float>(curimg->h);
+    if(static_cast<float>(SCR_W) / static_cast<float>(SCR_H) > static_cast<float>(img->w) / static_cast<float>(img->h)){
+        scl = static_cast<float>(SCR_H) / static_cast<float>(img->h);
     }else{
-        scl = static_cast<float>(SCR_W) / static_cast<float>(curimg->w);
+        scl = static_cast<float>(SCR_W) / static_cast<float>(img->w);
     }
 
-    curimg->scalex = curimg->scaley = scl;
+    img->scalex = img->scaley = scl;
     rndr = true;
 }
 
@@ -923,18 +929,18 @@ void next_img(){
 }
 
 void right_img(){
+    if(loaded + 1 > buffer)
+        unloadimg(albmi - buffer < 0 ? albm.size() - 1 + (albmi - buffer) : albmi - buffer);
     if(++albmi >= albm.size()) albmi = 0;
     next_img();
-    if(loaded > buffer)
-        unloadimg(albmi - buffer < 0 ? albm.size() - 1 + (albmi - buffer) : albmi - buffer);
     rndr = true;
 }
 
 void left_img(){
-    if(--albmi < 0) albmi = albm.size() - 1;
-    next_img();
-    if(loaded > buffer)
+    if(loaded + 1 > buffer)
         unloadimg(albmi + buffer > albm.size() - 1 ? (albmi + buffer) % (albm.size() - 1) : albmi + buffer);
+    if(albmi-- == 0) albmi = albm.size() - 1;
+    next_img();
     rndr = true;
 }
 
