@@ -156,10 +156,7 @@ bool comp_img(const image& a, const image& b){
     char* ac = const_cast<char*>(&a.path[0]);
 	char* bc = const_cast<char*>(&b.path[0]);
 
-//    cout << "[!] comparing " << a.path << " , " << b.path << "\n";
     while(*ac != 0 && *bc != 0){
-//        cout << "comparing " << *ac << ", " << *bc << "\n";
-        
         if(num(*ac) && num(*bc)){
             anum.push_back(*ac);
             bnum.push_back(*bc);
@@ -329,7 +326,24 @@ void init_default_actions(){
 	REG_CALLBACK(SDLK_EQUALS, actions[SDLK_2]);
 
 	GEN_CALLBACK(SDLK_1){
-		scaleimg(SCALE_DEGREE, SCALE_DEGREE, false);
+		if(e.key.keysym.mod & KMOD_SHIFT){
+			int i = albmi;
+			sivlog << "Beginning full buffer load\n";
+			SDL_SetWindowTitle(win, "Loading full buffer!...");
+			while(loaded < buffer){
+				i = i == albm.size() - 1 ? 0 : i + 1;
+				sivlog << i << '\n';
+				if(i == albmi){
+					sivlog << "Full buffer load looped! Ending\n";
+					break;
+				}
+				loadimg(i);
+			}
+			//TODO make load window title from img function
+			next_img();
+		}else{
+			scaleimg(SCALE_DEGREE, SCALE_DEGREE, false);
+		}
 	};
 	REG_CALLBACK(SDLK_MINUS, actions[SDLK_1]);
 
@@ -447,7 +461,7 @@ int main(int argc, char** args){
 	}
 	
 	if(!albm.size()){
-		cout << "No files given!\n";
+		cerr << "No files given!\n";
 		siv_quit(1);
 	}
 
@@ -490,8 +504,6 @@ int main(int argc, char** args){
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_string(!alias).c_str());
 	
 	next_img();
-    
-    SDL_WaitEvent(nullptr);
     
     /* * SIZE WINDOW * */
     if(!tilemode){
