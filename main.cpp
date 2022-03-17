@@ -392,12 +392,7 @@ void usage(){
 /***************/
 
 int main(int argc, char** args){
-	if(argc < 2){
-		cerr << "siv: Too few args!\n";
-		exit(1);
-	}
-
-	if(!strcmp("--help", args[1]) || !strcmp("-h", args[1])){
+	if(argc > 1 && (!strcmp("--help", args[1]) || !strcmp("-h", args[1]))){
 		usage();
 		exit(0);
 	}
