@@ -489,8 +489,7 @@ int main(int argc, char** args){
     SDL_SetRenderDrawColor(g, 255, 255, 255, 255);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_string(!alias).c_str());
 	
-	loadimg(albmi);
-	setimg(albmi);
+	next_img();
     
     SDL_WaitEvent(nullptr);
     
@@ -519,7 +518,6 @@ int main(int argc, char** args){
     SDL_Event e;
     bool run = true;
     
-    setimg(albmi);
 //    SDL_RenderClear(g);
     
     while(run){
@@ -613,15 +611,14 @@ int main(int argc, char** args){
 //                dirimgs.push_back({e.drop.file, static_cast<int>(albm.size())});
 			if(addimg(e.drop.file)){
 				albmi = albm.size() - 1;
-				loadimg(albmi);
-				setimg(albmi);
+				next_img();
 				fitimgwin();
 				sivlog << e.drop.file << " loaded from drop\n";
 			}else{
 				for(unsigned int i = 0; i < albm.size(); i++){
-					if(strcmp(albm[i].path.c_str(), e.drop.file)){
+					if(equivalent(albm[i].path, e.drop.file)){
 						albmi = i;
-						setimg(albmi);
+						next_img();
 					}
 				}
 			}
@@ -779,6 +776,7 @@ inline int addimg(const char* path){
     return 1;
 }
 
+//TODO add bg index to gifimage struct, and use it
 void loadimg(int i){
     image& nimg = albm[i];
     if(!nimg.img && !nimg.gif.frames){
@@ -847,22 +845,10 @@ void fitwinimg(){
 }
 
 void setimg(int i){
-    if(gif_active){
-        gif_active = false;
-        pthread_join(gif_thread, 0);
-    }
-    
     curimg = &albm[i];
     SDL_SetWindowTitle(win, ("Siv [" + to_string(i + 1) + "/" + to_string(albm.size()) + "] " + path(curimg->path).filename().string() +
             " " + to_string(curimg->w) + "x" + to_string(curimg->h)).c_str());
     rndr = true;
-
-    if(curimg->gif.frames){
-        curimg->gif.current_frame = 0;
-        pthread_create(&gif_thread, nullptr, gif_func, nullptr);
-        gif_active = true;
-        SDL_RenderClear(g);
-    }
 }
 
 void togglefscr(){
@@ -904,12 +890,23 @@ void scaleimg(float x, float y, bool larger){
 
 void next_img(){
     bool b = false;
+
+	stop_gif_thread();
+
     if(!albm[albmi].img && !albm[albmi].gif.frames){
         SDL_SetWindowTitle(win, ("Loading " + albm[albmi].path + ". . .").c_str());
         loadimg(albmi);
         b = true;
     }
     setimg(albmi);
+
+    if(curimg->gif.frames){
+        curimg->gif.current_frame = 0;
+        pthread_create(&gif_thread, nullptr, gif_func, nullptr);
+        gif_active = true;
+        SDL_RenderClear(g);
+    }
+
     if(b) fitimgwin();
 }
 
