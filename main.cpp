@@ -29,7 +29,7 @@ using namespace boost;
 using namespace boost::filesystem;
 
 int SCR_W = 500, SCR_H = 500;
-SDL_Rect rectbfr, recttmp, rectscl;
+SDL_Rect rectbfr;
 
 bool fscr = false, border = true;
 bool btn, altdn, ctrdn, shftdn;
@@ -45,13 +45,14 @@ struct coord{
 }mpos, ms;
 
 struct gifimg{
-    int count;
+    size_t count;
     SDL_Texture** frames;
     long* timetable;
     coord* offset;
-    int current_frame;
+    size_t current_frame;
     bool* overlay;
 	SDL_Texture* target;
+	size_t bg_index;
 };
 
 struct image{
@@ -333,9 +334,8 @@ void init_default_actions(){
 			SDL_SetWindowTitle(win, "Loading full buffer...!");
 			while(loaded < buffer){
 				i = i == albm.size() - 1 ? 0 : i + 1;
-				sivlog << i << '\n';
 				if(i == albmi){
-					sivlog << "Full buffer load looped! Ending\n";
+					sivlog << "Buffer index looped! Ending\n";
 					break;
 				}
 				loadimg(i);
@@ -662,6 +662,7 @@ void siv_quit(int r){
 void render_gif(){
     if(gif_rendering) return;
     gif_rendering = true;
+	//sivlog << "Rendering gif frame " << curimg->gif.current_frame << '\n';
     
     SDL_Texture*& fr = curimg->gif.frames[curimg->gif.current_frame];
 	SDL_Texture*& targ = curimg->gif.target;
@@ -669,21 +670,24 @@ void render_gif(){
 	//draw frame to target
 	SDL_SetRenderTarget(g, targ);
 
+	//render bg
+
+	
+	//render current frame
     int w, h;
     SDL_QueryTexture(fr, nullptr, nullptr, &w, &h);
 
-    rectscl =  {static_cast<int>((curimg->gif.offset[curimg->gif.current_frame].x)),
-                static_cast<int>((curimg->gif.offset[curimg->gif.current_frame].y)),
-                w,
-                h};
+    rectbfr = {static_cast<int>(curimg->gif.offset[curimg->gif.current_frame].x),
+               static_cast<int>(curimg->gif.offset[curimg->gif.current_frame].y),
+               w,
+               h};
     
-    if(!curimg->gif.overlay[curimg->gif.current_frame]) SDL_RenderClear(g);
-	SDL_RenderCopy(g, fr, NULL, &rectscl);
+	SDL_RenderCopy(g, fr, NULL, &rectbfr);
 
 	//draw target to window
 	SDL_SetRenderTarget(g, nullptr);
 
-    rectscl =  {static_cast<int>(SCR_W / 2 + curimg->w * curimg->scalex * (curimg->xoff / 100)),
+    rectbfr =  {static_cast<int>(SCR_W / 2 + curimg->w * curimg->scalex * (curimg->xoff / 100)),
                 static_cast<int>(SCR_H / 2 + curimg->h * curimg->scaley * (curimg->yoff / 100)),
                 static_cast<int>(curimg->w * curimg->scalex),
                 static_cast<int>(curimg->h * curimg->scaley)};
@@ -692,11 +696,12 @@ void render_gif(){
 
 	SDL_RenderClear(g);
 	if(curimg->theta){
-		SDL_RenderCopyEx(g, targ, NULL, &rectscl, curimg->theta, &cnt, SDL_RendererFlip::SDL_FLIP_NONE);
+		SDL_RenderCopyEx(g, targ, NULL, &rectbfr, curimg->theta, &cnt, SDL_RendererFlip::SDL_FLIP_NONE);
 	}else{
-		SDL_RenderCopy(g, targ, NULL, &rectscl);
+		SDL_RenderCopy(g, targ, NULL, &rectbfr);
 	}
     SDL_RenderPresent(g);
+
     gif_rendering = false;
 }
 
@@ -706,7 +711,7 @@ void render(){
         return;
     }
     
-    rectscl =  {static_cast<int>(SCR_W / 2 + curimg->w * curimg->scalex * curimg->xoff / 100),
+    rectbfr =  {static_cast<int>(SCR_W / 2 + curimg->w * curimg->scalex * curimg->xoff / 100),
                 static_cast<int>(SCR_H / 2 + curimg->h * curimg->scaley * curimg->yoff / 100),
                 static_cast<int>(curimg->w * curimg->scalex),
                 static_cast<int>(curimg->h * curimg->scaley)};
@@ -716,9 +721,9 @@ void render(){
     SDL_RenderClear(g);
     
     if(curimg->theta){
-        SDL_RenderCopyEx(g, curimg->img, NULL, &rectscl, curimg->theta, &pp, SDL_RendererFlip::SDL_FLIP_NONE);
+        SDL_RenderCopyEx(g, curimg->img, NULL, &rectbfr, curimg->theta, &pp, SDL_RendererFlip::SDL_FLIP_NONE);
     }else{
-        SDL_RenderCopy(g, curimg->img, NULL, &rectscl);
+        SDL_RenderCopy(g, curimg->img, NULL, &rectbfr);
     }
     
     SDL_RenderPresent(g);
@@ -797,43 +802,42 @@ inline int addimg(const char* path){
 //TODO add bg index to gifimage struct, and use it
 void loadimg(int i){
     image& nimg = albm[i];
-    if(!nimg.img && !nimg.gif.frames){
-        if(lowcase(path(nimg.path).extension().string()) == ".gif"){
-            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
-            GIF_Image* gif = GIF_LoadImage(nimg.path.c_str());
-            nimg.gif.count = gif->num_frames;
 
-            nimg.gif.frames = new SDL_Texture*[nimg.gif.count];
-            nimg.gif.timetable = new long[nimg.gif.count];
-            nimg.gif.offset = new coord[nimg.gif.count];
-            nimg.gif.overlay = new bool[nimg.gif.count];
-            
-            nimg.w = gif->width;
-            nimg.h = gif->height;
-			
-            for(int i = 0; i < nimg.gif.count; i++){
-                GIF_Frame*& fr = gif->frames[i];
+	if(!nimg.gif.frames && lowcase(path(nimg.path).extension().string()) == ".gif"){
+		GIF_Image* gif = GIF_LoadImage(nimg.path.c_str());
+		nimg.gif.count = gif->num_frames;
+		nimg.gif.bg_index = gif->background_index;
 
-                nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, fr->surface);
-                nimg.gif.timetable[i] = fr->delay + (!fr->delay * 100);
-                nimg.gif.offset[i] = {fr->left_offset, fr->top_offset};
-                nimg.gif.overlay[i] = gif->frames[i]->overlay_previous;
-            }
+		nimg.gif.frames = new SDL_Texture*[nimg.gif.count];
+		nimg.gif.timetable = new long[nimg.gif.count];
+		nimg.gif.offset = new coord[nimg.gif.count];
+		nimg.gif.overlay = new bool[nimg.gif.count];
+		
+		nimg.w = gif->width;
+		nimg.h = gif->height;
+		
+		for(size_t i = 0; i < nimg.gif.count; i++){
+			GIF_Frame*& fr = gif->frames[i];
 
-			uint32_t fmt;
-			SDL_QueryTexture(nimg.gif.frames[0], &fmt, 0, 0, 0);
-			nimg.gif.target = SDL_CreateTexture(g, fmt, SDL_TEXTUREACCESS_TARGET, nimg.w, nimg.h);
-            
-            GIF_FreeImage(gif);
-            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, alias ? "0" : "1");
-            sivlog << i << ": " << albm[i].path << " loaded (" << nimg.gif.count << ")\n";
-        }else{
-            nimg.img = IMG_LoadTexture(g, nimg.path.c_str());
-            SDL_QueryTexture(nimg.img, nullptr, nullptr, &nimg.w, &nimg.h);
-            sivlog << i << ": " << albm[i].path << " loaded\n";
-        }
-        loaded++;
-    }
+			nimg.gif.frames[i] = SDL_CreateTextureFromSurface(g, fr->surface);
+			nimg.gif.timetable[i] = fr->delay + (!fr->delay * 100);
+			nimg.gif.offset[i] = {fr->left_offset, fr->top_offset};
+			nimg.gif.overlay[i] = gif->frames[i]->overlay_previous;
+		}
+
+		uint32_t fmt;
+		SDL_QueryTexture(nimg.gif.frames[0], &fmt, 0, 0, 0);
+		nimg.gif.target = SDL_CreateTexture(g, fmt, SDL_TEXTUREACCESS_TARGET, nimg.w, nimg.h);
+		
+		GIF_FreeImage(gif);
+
+		sivlog << i << ": " << albm[i].path << " loaded (" << nimg.gif.count << ")\n";
+	}else if(!nimg.img){
+		nimg.img = IMG_LoadTexture(g, nimg.path.c_str());
+		SDL_QueryTexture(nimg.img, nullptr, nullptr, &nimg.w, &nimg.h);
+		sivlog << i << ": " << albm[i].path << " loaded\n";
+	}
+	loaded++;
 }
 
 void unloadimg(int i){
@@ -844,10 +848,10 @@ void unloadimg(int i){
         loaded--;
         sivlog << i << ": " << albm[i].path << " unloaded\n";
     }else if(img.gif.frames){
-        for(int i = 0; i < img.gif.count; i++){
+        for(size_t i = 0; i < img.gif.count; i++){
             SDL_DestroyTexture(img.gif.frames[i]);
         }
-        delete[] img.gif.frames;
+        delete img.gif.frames;
 //        img.gif.frames = nullptr;
         delete img.gif.timetable;
         delete img.gif.offset;
@@ -920,9 +924,10 @@ void next_img(){
 
     if(curimg->gif.frames){
         curimg->gif.current_frame = 0;
+
         pthread_create(&gif_thread, nullptr, gif_func, nullptr);
         gif_active = true;
-        SDL_RenderClear(g);
+        //SDL_RenderClear(g);
     }
 
     if(b) fitimgwin();
@@ -946,17 +951,24 @@ void left_img(){
 
 void* gif_func(void*){
     using namespace chrono;
+	time_point<high_resolution_clock> st = high_resolution_clock::now();
+	time_point<high_resolution_clock> ed;
+	gif_delta = 0;
+	gif_ptime = 0;
+
     while(gif_active){
-        long t = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+		ed = high_resolution_clock::now();
+        long t = duration_cast<milliseconds>(ed - st).count();
         int d = t - gif_ptime;
         gif_ptime = t;
         gif_delta += d;
-//        sivlog << gif_delta << " <- " << t << "\n";
-        if(gif_delta > curimg->gif.timetable[curimg->gif.current_frame]){
-            int& fr = curimg->gif.current_frame;
-            fr = (fr + 1) * (fr < curimg->gif.count - 1);
-//            sivlog << "GIF NEXT FRAME " << fr << "\n";
-            gif_delta = 0;
+        if(!gif_rendering && gif_delta > curimg->gif.timetable[curimg->gif.current_frame]){
+			//sivlog << gif_delta << " -> ";
+            gif_delta -= curimg->gif.timetable[curimg->gif.current_frame];
+			//sivlog << gif_delta << '\n';
+
+			curimg->gif.current_frame = (curimg->gif.current_frame + 1) * (curimg->gif.current_frame < curimg->gif.count - 1);
+            //gif_delta = 0;
             render();
         }
     }
